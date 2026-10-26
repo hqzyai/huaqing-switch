@@ -5,6 +5,7 @@ import {
   mkdtemp,
   mkdir,
   readFile,
+  realpath,
   rm,
   stat,
   writeFile,
@@ -12,11 +13,14 @@ import {
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import {
   assertPortAvailable,
   defaultBinary,
+  harnessLaunch,
+  harnessTarget,
   parseOptions,
   runIntegration,
   stopProcess,
@@ -63,6 +67,117 @@ test("selects native executable locations and rejects incomplete/unknown options
   assert.deepEqual(parseOptions(["--help"]), { help: true });
 });
 
+test("accepts explicit source and installed modes, rejecting ambiguous dependency closures", () => {
+  assert.equal(
+    parseOptions(["--harness-dir", "source checkout"]).harness,
+    resolve("source checkout"),
+  );
+  const installed = parseOptions([
+    "--harness-exe",
+    "installed app/HQHarness.exe",
+    "--harness-app-root",
+    "installed app/resources/app.asar",
+  ]);
+  assert.equal(installed.harness, undefined);
+  assert.equal(
+    installed.harnessExecutable,
+    resolve("installed app/HQHarness.exe"),
+  );
+  const target = harnessTarget(installed);
+  assert.equal(target.mode, "installed");
+  assert.equal(
+    target.pluginEntry,
+    join(
+      installed.harnessAppRoot,
+      "node_modules/hqharness-model-access/index.js",
+    ),
+  );
+  assert.deepEqual(target.inputs, [
+    installed.harnessExecutable,
+    installed.harnessAppRoot,
+    join(resolve("installed app/resources"), "harness-node-entry.mjs"),
+  ]);
+  assert.throws(
+    () => parseOptions(["source", "--harness-dir", "another"]),
+    /exactly one/,
+  );
+  assert.throws(() => parseOptions(["--harness-exe", "app.exe"]), /both/);
+  assert.throws(() => parseOptions(["--harness-app-root", "app.asar"]), /both/);
+  assert.throws(
+    () =>
+      parseOptions([
+        "source",
+        "--harness-exe",
+        "app.exe",
+        "--harness-app-root",
+        "app.asar",
+      ]),
+    /cannot be combined/,
+  );
+  assert.throws(
+    () =>
+      harnessTarget({
+        harnessExecutable: "app.exe",
+        harnessAppRoot: "source checkout",
+      }),
+    /app.asar archive/,
+  );
+});
+
+test("installed launch executes the selected helper from a neutral cwd with private Node-mode environment", async () => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "huaqing-installed-launch-")),
+  );
+  const home = join(root, "neutral home");
+  const resources = join(root, "installed resources");
+  const entry = join(home, "fixture entry.mjs");
+  const inherited = { ...process.env, ACCEPTANCE_FIXTURE: "retained" };
+  delete inherited.ELECTRON_RUN_AS_NODE;
+  let child;
+  try {
+    await mkdir(home);
+    await mkdir(resources);
+    await writeFile(
+      join(resources, "harness-node-entry.mjs"),
+      `await import(${JSON.stringify(pathToFileURL(entry).href)});`,
+    );
+    await writeFile(
+      entry,
+      `process.send({cwd:process.cwd(),entry:process.argv[2],nodeMode:process.env.ELECTRON_RUN_AS_NODE,home:process.env.DSH_HOME,fixture:process.env.ACCEPTANCE_FIXTURE});`,
+    );
+    const target = harnessTarget({
+      harnessExecutable: process.execPath,
+      harnessAppRoot: join(resources, "app.asar"),
+    });
+    const launch = harnessLaunch(target, {
+      home,
+      entry,
+      connectorPath: join(home, "connector.json"),
+      env: inherited,
+    });
+    assert.equal(launch.executable, process.execPath);
+    assert.equal(launch.options.windowsHide, true);
+    assert.equal(inherited.ELECTRON_RUN_AS_NODE, undefined);
+    child = spawn(launch.executable, launch.args, launch.options);
+    const finished = new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code) => resolve(code));
+    });
+    const [message] = await once(child, "message");
+    assert.deepEqual(message, {
+      cwd: home,
+      entry,
+      nodeMode: "1",
+      home,
+      fixture: "retained",
+    });
+    assert.equal(await finished, 0);
+  } finally {
+    await stopProcess(child);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("refuses an occupied port while leaving the existing listener usable", async () => {
   const existing = createServer((socket) => socket.end("still running"));
   await new Promise((resolve, reject) => {
@@ -77,6 +192,31 @@ test("refuses an occupied port while leaving the existing listener usable", asyn
     await new Promise((resolve) => existing.close(resolve));
   }
   await assertPortAvailable(port);
+});
+
+test("installed preflight rejects a source directory disguised as an ASAR archive", async () => {
+  const root = await mkdtemp(join(tmpdir(), "huaqing-not-an-archive-"));
+  const appRoot = join(root, "resources", "app.asar");
+  try {
+    await mkdir(appRoot, { recursive: true });
+    await writeFile(
+      join(root, "resources", "harness-node-entry.mjs"),
+      "// fixture\n",
+    );
+    await assert.rejects(
+      runIntegration({
+        harnessExecutable: process.execPath,
+        harnessAppRoot: appRoot,
+        binary: process.execPath,
+        outputDir: join(root, "output"),
+        timeoutMs: 3000,
+      }),
+      /actual app.asar file/,
+    );
+    await assert.rejects(stat(join(root, "output")), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("writes and replaces a fixture store without Python or external SQLite", async () => {

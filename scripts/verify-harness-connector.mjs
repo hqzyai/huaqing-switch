@@ -11,12 +11,13 @@ import {
   mkdtemp,
   mkdir,
   readFile,
+  stat,
   writeFile,
   rm,
 } from "node:fs/promises";
 import { openSync, closeSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve, join, dirname } from "node:path";
+import { resolve, join, dirname, basename } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -29,6 +30,9 @@ export function parseOptions(args, platform = process.platform) {
     args,
     options: {
       binary: { type: "string" },
+      "harness-dir": { type: "string" },
+      "harness-exe": { type: "string" },
+      "harness-app-root": { type: "string" },
       "output-dir": { type: "string" },
       "timeout-ms": { type: "string" },
       help: { type: "boolean" },
@@ -36,9 +40,24 @@ export function parseOptions(args, platform = process.platform) {
     allowPositionals: true,
   });
   if (values.help) return { help: true };
-  if (positionals.length !== 1)
+  if (positionals.length > 1 || (positionals.length && values["harness-dir"]))
     throw new Error(
-      "Specify exactly one HQHarness repository path; use --help for usage",
+      "Specify exactly one HQHarness repository path, as a positional argument or --harness-dir",
+    );
+  const harness = positionals[0] ?? values["harness-dir"];
+  const harnessExecutable = values["harness-exe"];
+  const harnessAppRoot = values["harness-app-root"];
+  if (harness && (harnessExecutable || harnessAppRoot))
+    throw new Error(
+      "Source and installed HQHarness options cannot be combined",
+    );
+  if (Boolean(harnessExecutable) !== Boolean(harnessAppRoot))
+    throw new Error(
+      "Installed acceptance requires both --harness-exe and --harness-app-root",
+    );
+  if (!harness && !harnessExecutable)
+    throw new Error(
+      "Specify exactly one HQHarness source directory or an installed executable/archive pair; use --help for usage",
     );
   const timeoutMs = Number(values["timeout-ms"] ?? 120000);
   if (
@@ -48,10 +67,83 @@ export function parseOptions(args, platform = process.platform) {
   )
     throw new Error("--timeout-ms must be an integer from 1000 to 600000");
   return {
-    harness: resolve(positionals[0]),
+    harness: harness ? resolve(harness) : undefined,
+    harnessExecutable: harnessExecutable
+      ? resolve(harnessExecutable)
+      : undefined,
+    harnessAppRoot: harnessAppRoot ? resolve(harnessAppRoot) : undefined,
     binary: values.binary ? resolve(values.binary) : defaultBinary(platform),
     outputDir: resolve(values["output-dir"] ?? join(root, "validation")),
     timeoutMs,
+  };
+}
+
+/** Resolve one dependency closure without asking external Node to read ASAR internals. */
+export function harnessTarget({ harness, harnessExecutable, harnessAppRoot }) {
+  if (harnessExecutable || harnessAppRoot) {
+    if (!harnessExecutable || !harnessAppRoot || harness)
+      throw new Error(
+        "Choose either a source directory or both installed HQHarness paths",
+      );
+    const appRoot = resolve(harnessAppRoot);
+    if (basename(appRoot) !== "app.asar")
+      throw new Error(
+        "--harness-app-root must name the installed resources/app.asar archive",
+      );
+    const executable = resolve(harnessExecutable);
+    const nodeEntry = join(dirname(appRoot), "harness-node-entry.mjs");
+    return {
+      mode: "installed",
+      appRoot,
+      executable,
+      nodeEntry,
+      pluginEntry: join(
+        appRoot,
+        "node_modules/hqharness-model-access/index.js",
+      ),
+      inputs: [executable, appRoot, nodeEntry],
+    };
+  }
+  if (!harness) throw new Error("A HQHarness source directory is required");
+  const appRoot = resolve(harness);
+  const nodeEntry = join(appRoot, "build/harness-node-entry.mjs");
+  const pluginEntry = join(appRoot, "packages/hqharness-model-access/index.js");
+  return {
+    mode: "source",
+    appRoot,
+    executable: process.execPath,
+    nodeEntry,
+    pluginEntry,
+    inputs: [
+      nodeEntry,
+      pluginEntry,
+      join(appRoot, "node_modules/@deepseek-ai/dsh-llm/lib/index.js"),
+    ],
+  };
+}
+
+/** Launch only the chosen runtime, with an existing neutral cwd and isolated profile. */
+export function harnessLaunch(
+  target,
+  { home, entry, connectorPath, env = process.env },
+) {
+  return {
+    executable: target.executable,
+    args: [target.nodeEntry, entry],
+    options: {
+      cwd: home,
+      env: {
+        ...env,
+        ...(target.mode === "installed" ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+        DSH_HOME: home,
+        HQHARNESS_MODEL_SOURCE: "huaqing-switch",
+        HUAQING_SWITCH_CONNECTOR_PATH: connectorPath,
+        NO_PROXY: "127.0.0.1,localhost",
+        no_proxy: "127.0.0.1,localhost",
+      },
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe", "ipc"],
+    },
   };
 }
 
@@ -136,6 +228,8 @@ export async function stopProcess(child, graceMs = 5000) {
 /** Run native Switch and the real Harness/Pi adapters with disposable fixture data. */
 export async function runIntegration({
   harness,
+  harnessExecutable,
+  harnessAppRoot,
   binary,
   outputDir,
   timeoutMs,
@@ -144,6 +238,7 @@ export async function runIntegration({
     throw new Error(
       "The connector acceptance requires Node.js 24 or later (matching HQHarness)",
     );
+  const target = harnessTarget({ harness, harnessExecutable, harnessAppRoot });
   const controller = new AbortController();
   const interrupted = () =>
     controller.abort(new Error("Connector acceptance interrupted"));
@@ -174,15 +269,14 @@ export async function runIntegration({
   };
   try {
     await assertPortAvailable();
-    for (const path of [
-      binary,
-      join(harness, "build/harness-node-entry.mjs"),
-      join(harness, "packages/hqharness-model-access/index.js"),
-      join(harness, "node_modules/@deepseek-ai/dsh-llm/lib/index.js"),
-    ])
+    for (const path of [binary, ...target.inputs])
       await access(path).catch((error) => {
         throw new Error(`Missing acceptance input: ${path}`, { cause: error });
       });
+    if (target.mode === "installed" && !(await stat(target.appRoot)).isFile())
+      throw new Error(
+        "Installed acceptance requires an actual app.asar file, not a source directory",
+      );
     await mkdir(outputDir, { recursive: true });
     await rm(join(outputDir, "huaqing-harness-e2e.json"), { force: true });
     home = await mkdtemp(join(tmpdir(), "huaqing-integration-"));
@@ -483,7 +577,8 @@ export async function runIntegration({
     const modelId = (i) => `hq-${ids[i]}-v1`;
     const entry = join(home, "harness-test.mjs");
     const moduleUrl = (name) =>
-      pathToFileURL(join(harness, "node_modules", name, "lib/index.js")).href;
+      pathToFileURL(join(target.appRoot, "node_modules", name, "lib/index.js"))
+        .href;
     const config = join(home, "cordis.json");
     await writeFile(
       config,
@@ -491,16 +586,19 @@ export async function runIntegration({
         { id: "llm", name: moduleUrl("@deepseek-ai/dsh-llm") },
         {
           id: "switch",
-          name: pathToFileURL(
-            join(harness, "packages/hqharness-model-access/index.js"),
-          ).href,
+          name: pathToFileURL(target.pluginEntry).href,
         },
       ]),
     );
     await writeFile(
       entry,
       `
- import assert from 'node:assert/strict';import {setTimeout as delay} from 'node:timers/promises';import {boot} from ${JSON.stringify(moduleUrl("@deepseek-ai/dsh-app-boot"))};
+ import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {setTimeout as delay} from 'node:timers/promises';
+ const mode=${JSON.stringify(target.mode)};
+ if(mode==='installed')assert(process.versions.electron,'Installed acceptance must execute the installed Electron runtime, not standalone Node');
+ const desktop=JSON.parse(await readFile(${JSON.stringify(join(target.appRoot, "package.json"))},'utf8'));
+ process.send({kind:'harness-runtime',runtime:{mode,electron:process.versions.electron??null,node:process.versions.node,platform:process.platform,architecture:process.arch,executable:process.execPath,appRoot:${JSON.stringify(target.appRoot)},desktopVersion:desktop.version}});
+ const {boot}=await import(${JSON.stringify(moduleUrl("@deepseek-ai/dsh-app-boot"))});
  let selection={provider:'old-provider',model:'old-model'};const defaults=[];
  const ctx=await boot('huaqing-integration',${JSON.stringify(config)},[],ctx=>{ctx.provide('connection',{fetch:{register(){return()=>{}}}});ctx.provide('agentDefaultModel',{currentSelection:()=>selection,async saveSelection(value){selection=value;defaults.push(value)}})});
  const wait=async(check)=>{for(let i=0;i<150;i++){if(check())return;await delay(50)}throw new Error('Harness synchronization timeout')};
@@ -567,23 +665,18 @@ export async function runIntegration({
     );
     let output = "";
     const phases = [];
-    child = spawn(
-      process.execPath,
-      [join(harness, "build/harness-node-entry.mjs"), entry],
-      {
-        cwd: home,
-        env: {
-          ...process.env,
-          DSH_HOME: home,
-          HQHARNESS_MODEL_SOURCE: "huaqing-switch",
-          HUAQING_SWITCH_CONNECTOR_PATH: connectorPath,
-          NO_PROXY: "127.0.0.1,localhost",
-        },
-        stdio: ["ignore", "pipe", "pipe", "ipc"],
-      },
-    );
+    let harnessRuntime;
+    const launch = harnessLaunch(target, { home, entry, connectorPath });
+    child = spawn(launch.executable, launch.args, launch.options);
     const childClosed = new Promise((resolve) => {
-      child.once("error", (error) => resolve({ error }));
+      child.once("error", (error) =>
+        resolve({
+          error: new Error(
+            `Could not start ${target.mode} HQHarness runtime (${error.code}) from neutral directory ${home}: ${error.message}`,
+            { cause: error },
+          ),
+        }),
+      );
       child.once("close", (code, signal) => resolve({ code, signal }));
     });
     child.stdout.on(
@@ -600,6 +693,12 @@ export async function runIntegration({
         .then(async () => {
           controller.signal.throwIfAborted();
           try {
+            if (value.kind === "harness-runtime") {
+              assert.equal(value.runtime.mode, target.mode);
+              if (target.mode === "installed") assert(value.runtime.electron);
+              harnessRuntime = value.runtime;
+              return;
+            }
             phases.push(value.phase);
             if (value.phase === "base") {
               await waitUntil(() => cancelled);
@@ -667,6 +766,10 @@ export async function runIntegration({
     if (phaseError) throw phaseError;
     assert.equal(result.code, 0, output);
     assert(output.includes("HUAQING_HARNESS_E2E_PASS"), output);
+    assert(
+      harnessRuntime,
+      "The selected HQHarness runtime did not report its identity",
+    );
     for (const call of calls) {
       const route = call.url.split("/")[1];
       assert.equal(call.body.model, `upstream-${route}`);
@@ -687,6 +790,7 @@ export async function runIntegration({
       platform: process.platform,
       architecture: process.arch,
       nodeVersion: process.version,
+      harnessRuntime,
       phases,
       protocols: ["openai-chat", "openai-responses", "anthropic"],
       upstreamRequests: calls.length,
@@ -695,8 +799,7 @@ export async function runIntegration({
       defaultSwitchPreservesPinnedModel: true,
       editedModelRejected: true,
       legacyProviderBlocked: true,
-      scope:
-        "Real native Switch and real Harness/Pi runtime; deterministic local API fixture, no paid model call",
+      scope: `Real native Switch and ${target.mode === "installed" ? "installed HQHarness Electron/Pi" : "source Harness/Pi"} runtime; deterministic local API fixture, no paid model call; GUI not exercised`,
     };
     await writeFile(
       join(outputDir, "huaqing-harness-e2e.json"),
@@ -733,8 +836,12 @@ if (
     const options = parseOptions(process.argv.slice(2));
     if (options.help)
       console.log(`Usage: node scripts/verify-harness-connector.mjs <HQHarness repository> [options]
+   or: node scripts/verify-harness-connector.mjs --harness-exe <installed executable> --harness-app-root <resources/app.asar> [options]
 
-Requires Node.js 24+, built native Switch, and installed HQHarness dependencies.
+Requires Node.js 24+ and native Switch. Source mode needs HQHarness dependencies.
+  --harness-dir <path>  Source checkout (alternative to the positional argument)
+  --harness-exe <path>  Installed Electron executable in Node mode (Windows: HQHarness.exe)
+  --harness-app-root <path>  Matching installed resources/app.asar archive
   --binary <path>       Native Switch executable (default: platform debug build)
   --output-dir <path>   Logs and JSON report (default: validation/)
   --timeout-ms <ms>     Whole-run deadline, 1000..600000 (default: 120000)
