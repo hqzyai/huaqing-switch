@@ -56,6 +56,28 @@ pub struct GatewayStatus {
     total_requests: u64,
 }
 
+enum AuthorizationError {
+    AccessDenied,
+    InvalidToken,
+}
+
+impl IntoResponse for AuthorizationError {
+    fn into_response(self) -> Response {
+        match self {
+            Self::AccessDenied => error(
+                StatusCode::FORBIDDEN,
+                "LOCAL_ACCESS_DENIED",
+                "仅允许受信任的本机客户端",
+            ),
+            Self::InvalidToken => error(
+                StatusCode::UNAUTHORIZED,
+                "LOCAL_TOKEN_INVALID",
+                "本机连接凭证已失效，请重试连接",
+            ),
+        }
+    }
+}
+
 impl Gateway {
     pub fn new(db: Arc<Database>, directory: PathBuf) -> Self {
         let brand: Value = serde_json::from_str(include_str!("../../../brand.config.json"))
@@ -139,16 +161,12 @@ impl Gateway {
         }
     }
 
-    fn authorize(&self, headers: &HeaderMap) -> Result<(), Response> {
+    fn authorize(&self, headers: &HeaderMap) -> Result<(), AuthorizationError> {
         if headers.contains_key("origin")
             || headers.get("host").and_then(|h| h.to_str().ok())
                 != Some(format!("127.0.0.1:{}", self.0.port).as_str())
         {
-            return Err(error(
-                StatusCode::FORBIDDEN,
-                "LOCAL_ACCESS_DENIED",
-                "仅允许受信任的本机客户端",
-            ));
+            return Err(AuthorizationError::AccessDenied);
         }
         let supplied = headers
             .get("authorization")
@@ -168,11 +186,7 @@ impl Gateway {
                 .verify_slice(&sign(supplied.as_bytes()).finalize().into_bytes())
                 .is_err()
         {
-            return Err(error(
-                StatusCode::UNAUTHORIZED,
-                "LOCAL_TOKEN_INVALID",
-                "本机连接凭证已失效，请重试连接",
-            ));
+            return Err(AuthorizationError::InvalidToken);
         }
         Ok(())
     }
@@ -221,8 +235,8 @@ fn model_id(connection: &Connection) -> String {
 }
 
 async fn manifest(State(gateway): State<Gateway>, headers: HeaderMap) -> Response {
-    if let Err(response) = gateway.authorize(&headers) {
-        return response;
+    if let Err(error) = gateway.authorize(&headers) {
+        return error.into_response();
     }
     let store = match gateway.store().await {
         Ok(store) => store,
@@ -297,8 +311,8 @@ async fn forward(
     protocol: Protocol,
     request: axum::extract::Request,
 ) -> Response {
-    if let Err(response) = gateway.authorize(request.headers()) {
-        return response;
+    if let Err(error) = gateway.authorize(request.headers()) {
+        return error.into_response();
     }
     let permit = match gateway.0.slots.clone().try_acquire_owned() {
         Ok(p) => p,
@@ -540,4 +554,117 @@ pub async fn hq_get_gateway_status(
 pub async fn hq_retry_gateway(state: tauri::State<'_, Gateway>) -> Result<GatewayStatus, String> {
     state.start().await;
     Ok(state.status().await)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::Request;
+
+    fn gateway() -> Gateway {
+        Gateway::new(Arc::new(Database::memory().unwrap()), PathBuf::new())
+    }
+
+    #[tokio::test]
+    async fn rejected_authorization_preserves_errors_before_inference_admission() {
+        let gateway = gateway();
+        let _permits = gateway
+            .0
+            .slots
+            .clone()
+            .acquire_many_owned(16)
+            .await
+            .unwrap();
+        let local_host = format!("127.0.0.1:{}", gateway.0.port);
+        for (host, origin, token, status, code, message) in [
+            (
+                "localhost",
+                None,
+                gateway.0.token.as_str(),
+                StatusCode::FORBIDDEN,
+                "LOCAL_ACCESS_DENIED",
+                "仅允许受信任的本机客户端",
+            ),
+            (
+                local_host.as_str(),
+                Some("https://example.invalid"),
+                gateway.0.token.as_str(),
+                StatusCode::FORBIDDEN,
+                "LOCAL_ACCESS_DENIED",
+                "仅允许受信任的本机客户端",
+            ),
+            (
+                local_host.as_str(),
+                None,
+                "",
+                StatusCode::UNAUTHORIZED,
+                "LOCAL_TOKEN_INVALID",
+                "本机连接凭证已失效，请重试连接",
+            ),
+            (
+                local_host.as_str(),
+                None,
+                "0000000000000000000000000000000000000000000000000000000000000000",
+                StatusCode::UNAUTHORIZED,
+                "LOCAL_TOKEN_INVALID",
+                "本机连接凭证已失效，请重试连接",
+            ),
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert("host", host.parse().unwrap());
+            if let Some(origin) = origin {
+                headers.insert("origin", origin.parse().unwrap());
+            }
+            if !token.is_empty() {
+                headers.insert("authorization", format!("Bearer {token}").parse().unwrap());
+            }
+            let mut request = Request::new(Body::from("invalid JSON"));
+            *request.headers_mut() = headers.clone();
+            for response in [
+                manifest(State(gateway.clone()), headers).await,
+                forward(
+                    gateway.clone(),
+                    "missing".into(),
+                    1,
+                    Protocol::OpenaiChat,
+                    request,
+                )
+                .await,
+            ] {
+                assert_eq!(response.status(), status);
+                let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+                let body: Value = serde_json::from_slice(&bytes).unwrap();
+                assert_eq!(
+                    body,
+                    json!({"error":{"type":"huaqing_switch","code":code,"message":message}})
+                );
+            }
+        }
+        let status = gateway.status().await;
+        assert_eq!(status.active_requests, 0);
+        assert_eq!(status.total_requests, 0);
+    }
+
+    #[tokio::test]
+    async fn manifest_accepts_bearer_and_native_anthropic_credentials() {
+        let gateway = gateway();
+        for (name, token) in [
+            ("authorization", format!("Bearer {}", gateway.0.token)),
+            ("x-api-key", gateway.0.token.clone()),
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "host",
+                format!("127.0.0.1:{}", gateway.0.port).parse().unwrap(),
+            );
+            headers.insert(name, token.parse().unwrap());
+            let response = manifest(State(gateway.clone()), headers).await;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["cache-control"], "no-store");
+            let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+            let body: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(body["product"], "huaqing-switch");
+            assert_eq!(body["models"], json!([]));
+        }
+    }
 }

@@ -4,7 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [dev]
-    paths: [".github/workflows/windows-acceptance.yml"]
+    paths:
+      - ".github/workflows/windows-acceptance.yml"
+      - "src-tauri/tauri.windows.conf.json"
+      - "src-tauri/wix/**"
 
 permissions:
   contents: read
@@ -52,7 +55,7 @@ jobs:
           package-manager-cache: false
 
       - name: Test Windows connector acceptance script
-        run: node --test scripts/verify-harness-connector.test.mjs scripts/windows-installer.test.mjs
+        run: node --test scripts/verify-harness-connector.test.mjs scripts/windows-installer.test.mjs scripts/windows-resources.test.mjs
 
       - name: Setup pinned build Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
