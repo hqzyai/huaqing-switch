@@ -1,10 +1,10 @@
 # Huaqing Switch 与 HQHarness 接入
 
-2026-10-22。当前实现记录；覆盖先前文档中“仅配置管理、转发待接入”的状态。
+2026-10-26 更新。记录当前实现、可复现验证方式及 Windows 106 服务器的验收范围。
 
 ## 产品与使用
 
-产品显示名称统一为 **Huaqing Switch**。项目目录仍为 Huaqing Model Connection，已有应用 ID、包名、深链及数据库路径保持稳定，避免更名产生两份配置。品牌样式继续使用用户提供的 shadcn-ui-unify 规范。只显示 HQ Harness 和设置；其他客户端、路由、聚合及辅助管理入口不加载。
+产品显示名称统一为 **Huaqing Switch**，源码仓库为 `huaqing-switch`。已有应用 ID、包名、深链及数据库路径保持稳定，避免更名产生两份配置。品牌样式继续使用用户提供的 shadcn-ui-unify 规范。只显示 HQ Harness 和设置；其他客户端、路由、聚合及辅助管理入口不加载。
 
 1. 启动 Switch，确认“本机服务”显示正在运行；默认监听 `127.0.0.1:17621`。
 2. 添加连接，选择与供应商实际 API 相符的协议、地址、模型和密钥，设为默认。上下文/输出限制是本地预算，需要按供应商能力填写；图片支持必须显式开启。
@@ -56,14 +56,14 @@ HQHarness：`src/main/huaqing-switch.ts`、主进程运行时环境、preload �
 # Switch 仓库；启动实际原生应用和实际 Harness/Pi runtime，用本地确定性 API 测试
 node scripts/verify-harness-connector.mjs /path/to/HQHarness
 
-# Windows PowerShell；使用该机器上构建的原生可执行文件
+# Windows PowerShell；验证源码开发环境与原生可执行文件
 node scripts/verify-harness-connector.mjs C:\src\HQHarness --binary C:\src\huaqing-switch\src-tauri\target\debug\hq-model-switch.exe
 
 # 自定义构建目录或安装包时，显式指定二进制和证据输出目录
 node scripts/verify-harness-connector.mjs /path/to/HQHarness --binary /path/to/hq-model-switch --output-dir /path/to/validation --timeout-ms 120000
 
 # 脚本自身回归；无需构建原生应用或调用付费模型
-node --test scripts/verify-harness-connector.test.mjs
+node --test scripts/verify-harness-connector.test.mjs scripts/windows-installer.test.mjs scripts/windows-resources.test.mjs
 
 # HQHarness 仓库
 node node_modules/typescript/bin/tsc --noEmit -p tsconfig.node.json
@@ -71,13 +71,31 @@ node node_modules/vitest/vitest.mjs run test/huaqing-switch.test.mjs test/huaqin
 npm run build
 ```
 
-联调脚本要求 Node.js 24 或更高版本，与 HQHarness 开发要求一致；直接使用 Node 内置 SQLite，不需要 Python 或外部 sqlite3。默认二进制为当前平台的 Tauri debug 产物：Windows/Linux 使用 `src-tauri/target/debug/hq-model-switch[.exe]`，macOS 使用该目录中 bundle 内的可执行文件。使用 release、自定义 `CARGO_TARGET_DIR` 或已安装应用时传入 `--binary`；HQHarness 路径须包含已安装依赖、现有 Switch 插件和 `build/harness-node-entry.mjs`。路径含空格时使用 shell 对应的引号。
+联调脚本要求 Node.js 24 或更高版本，与 HQHarness 开发要求一致；直接使用 Node 内置 SQLite，不需要 Python 或外部 sqlite3。默认二进制为当前平台的 Tauri debug 产物：Windows/Linux 使用 `src-tauri/target/debug/hq-model-switch[.exe]`，macOS 使用该目录中 bundle 内的可执行文件。使用 release、自定义 `CARGO_TARGET_DIR` 或已安装应用时传入 `--binary`。源码模式的 HQHarness 路径须包含已安装依赖、现有 Switch 插件和 `build/harness-node-entry.mjs`。路径含空格时使用 shell 对应的引号。
+
+已安装 HQHarness 使用 `--harness-exe` 与 `--harness-app-root`，后者必须指向同一安装目录中的 `resources/app.asar`。脚本由该 EXE 的 Electron Node 模式加载 ASAR 内的真实 Harness/Pi 依赖及 Switch 插件，并记录实际 EXE、ASAR、Desktop、Electron 和 Node 版本；无需在目标服务器检出 HQHarness 源码或安装 npm 依赖。两种 HQHarness 输入模式不能混用。
+
+以下命令在 Switch 仓库内运行，使用生产应用的准确 HKCU 卸载键定位 HQHarness 0.1.8，不遍历磁盘或读取用户配置。执行前须通过托盘“退出”正常关闭 Switch，避免固定端口和单实例冲突。
+
+```powershell
+$registration = Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\0efcdb0c-0869-57ce-862f-b5dcc16b1997'
+if ($registration.DisplayName -cne 'HQHarness 0.1.8' -or $registration.DisplayVersion -cne '0.1.8') {
+  throw 'Expected the production HQHarness 0.1.8 installation'
+}
+if ($registration.UninstallString -notmatch '^\s*"([^"]+\\Uninstall HQHarness\.exe)"(?:\s|$)') {
+  throw 'Unexpected HQHarness uninstall registration'
+}
+$harnessExe = Join-Path (Split-Path -Parent $Matches[1]) 'HQHarness.exe'
+$harnessAsar = Join-Path (Split-Path -Parent $harnessExe) 'resources\app.asar'
+$switchExe = Join-Path $env:LOCALAPPDATA 'Programs\Huaqing Switch\hq-model-switch.exe'
+node scripts/verify-harness-connector.mjs --harness-exe "$harnessExe" --harness-app-root "$harnessAsar" --binary "$switchExe" --output-dir .\validation\installed-acceptance --timeout-ms 180000
+```
 
 每次启动前检查固定端口 17621，已有服务占用时直接停止验收，不终止或改写用户的 Switch。验收使用独立临时 home、数据库及 Harness Profile；所有上游连接均指向本次创建的回环 fixture。输出目录自动创建，开始新验收时移除该目录里旧的成功报告，日志和成功 JSON 保存在临时 home 之外。脚本发出的控制探测每次最多 5 秒，整个验收默认最多 120 秒，可用 `--timeout-ms` 设置 1000–600000 毫秒；超时、中断和失败均关闭本次子进程及监听器，确认退出后再删除临时数据。无法确认子进程退出时保留临时文件并报错。脚本回归覆盖路径解析、端口占用保护、SQLite 更新、提前退出、强制终止、整体验收超时及旧报告失效；跨平台路径测试不替代对应系统的原生联调。
 
-实际检查包括：三协议流式工具调用、密钥注入及模型改写、无鉴权/浏览器来源拒绝、输出上限、重定向不泄露凭证、取消传播、重启凭证轮换、默认切换后原会话保持原连接、编辑后拒绝过期版本、旧供应商拦截。原生联调结果留存在本地 `validation/huaqing-harness-e2e.json`；验证目录不随源码提交。
+实际检查包括：三协议流式工具调用、密钥注入及模型改写、无鉴权/浏览器来源拒绝、输出上限、重定向不泄露凭证、取消传播、重启凭证轮换、默认切换后原会话保持原连接、编辑后拒绝过期版本、旧供应商拦截。原生联调结果保存在指定输出目录的 `huaqing-harness-e2e.json`；默认位置为本地 `validation/huaqing-harness-e2e.json`。验证目录不随源码提交。
 
-已完成 Switch 原生存储测试、相关前端检查、HQHarness 类型检查和 6 个文件共 35 项相关测试；从不含 node_modules/生成目录的源码副本执行完整 `npm ci` 和 postinstall 补丁重放成功。两端 macOS arm64 未签名验证包构建成功。真实付费供应商调用、Windows/Linux 原生安装启动、正式签名/公证和发行服务仍需对应环境验收，不能把本轮本地协议测试等同于这些验证。
+此前已完成 Switch 原生存储测试、相关前端检查、HQHarness 类型检查和 6 个文件共 35 项相关测试；从不含 node_modules/生成目录的源码副本执行完整 `npm ci` 和 postinstall 补丁重放成功。两端 macOS arm64 未签名验证包构建成功。Windows 原生安装、已安装依赖联调及本轮 CI 结果见下；Linux 原生安装启动、真实付费供应商调用和正式签名发行仍待对应环境验收。
 
 ## 构建产物与验收记录
 
@@ -87,9 +105,29 @@ npm run build
 
 下载 Actions 产物后先核对 `SHA256SUMS.txt` 与 `package.json` 中的源码提交。安装可以使用 `msiexec /i <完整 MSI 路径> /qn /norestart CREATEDESKTOPSHORTCUT=0`；安装后仍须在目标 Windows 上核对版本、启动界面、本机服务和实际 HQHarness/Pi 调用。构建成功、安装成功与模型请求成功分别记录。未签名验收包不能作为正式签名发行包。
 
-连接编辑器的字段区支持滚动，标题与保存/取消操作保留在弹窗内，覆盖默认 Windows 窗口及键盘提交。
+本轮使用的 Windows 包与代码来源：
+
+| 项目 | 来源与验收状态 |
+| --- | --- |
+| Switch 当前 `dev` | `6eed6592406fdf2f8271c8bda685f5e53c783748`；[主 CI 40302472033](https://github.com/hqzyai/huaqing-switch/actions/runs/40302472033) 的前端、Linux/Windows/macOS 后端及 WSL2 检查通过。 |
+| Switch 0.1.0 MSI | 源码 `136609ac3d3a4d6b64af18b283864a4f46a6973d`；[Windows 打包 40292921395](https://github.com/hqzyai/huaqing-switch/actions/runs/40292921395) 成功。到当前 `dev` 仅增加联调验证脚本及 golden 测试修正，产品源码、依赖、资源和安装器配置相同。 |
+| HQHarness 当前代码 | `61788d465e95d8480fc16a59727e955461c487f7`；[Windows 完整验收 CI 40315304291](https://github.com/jiawenyao401/HQHarness/actions/runs/40315304291) 的构建、测试、原生验证和草稿交付核验通过。 |
+| 106 已安装 HQHarness 0.1.8 | 源码 `c26c526b491006db8bbb462011c44ed31aac95e4`；生产应用 ID 为 `app.hqharness.desktop`。到 `61788d4` 只改草稿交付脚本与对应测试，产品输入树相同。 |
+
+已安装 Switch MSI 的 SHA256 为 `3b063a29476e4233673114db8453c9dcf84389ab47e1e52eb6e2a1d9d87e3ce9`；已安装 HQHarness NSIS 包的 SHA256 为 `8f564537c63d21993d4fcd00d239593e168f1d02478db7393823ffc91c63b9a8`。两者均在传输后校验并以退出码 0 安装。HQHarness 的草稿交付始终保留未发布状态；上传后通过真实 release ID 检查源码、草稿标记及四个已上传资产，避免未发布 tag 的 REST 404 造成误报。
+
+### 106 已完成的验收
+
+- **Switch 正常启动和表单**：已安装 EXE 显示 0.1.0，本机服务监听回环 17621；连接编辑器可滚动到底部字段，保存按钮始终可见，托盘正常退出通过。证据为本地 `validation/windows-transfer/switch-installed-acceptance.json` 与 `switch-form-106.png`。浏览器尺寸回归另覆盖 1000×640、1100×650、1920×1080，包含键盘到达保存按钮。
+- **MSI 卸载及重装**：卸载和重装均退出 0。共享 Programs 目录中的任务专用哨兵文件内容保持不变，重装后 EXE 哈希与首次安装一致。证据为本地 `validation/windows-transfer/switch-uninstall-acceptance.json`；该回归验证此前危险的共享父目录通配删除规则已移除。
+- **HQHarness 安装后身份**：NSIS 安装退出 0，已安装 EXE 为 0.1.8.0，ASAR 内包版本为 0.1.8；按精确生产注册表键及 `HQHarness 0.1.8` / `0.1.8` 的注册名和版本核验，Switch 插件与主进程来源策略存在。安装后的独立核验读取固定 ASAR 文件，不运行桌面主入口或打开用户配置。证据为本地 `validation/windows-transfer/harness-qualified.json`。
+- **已安装 EXE + ASAR 核心联调**：使用 Windows x64 Node 24.10.0 驱动已安装 Switch，与 HQHarness 自带 Electron 44.7.0 / Node 24.21.0 的实际 ASAR 依赖联调。三协议流式工具调用、鉴权与重定向保护、取消、凭证轮换、默认切换保留旧连接、旧版本拒绝、旧供应商拦截、离线及重启均通过，验证器退出 0，未遗留本轮子进程。证据为本地 `validation/windows-transfer/installed-acceptance.json`。
+
+上述核心联调使用独立临时数据目录和确定性本地 API fixture，不调用付费模型，也不构成 GUI 自动化验收。另已从桌面快捷方式正常启动 HQHarness，确认原有会话保留、新建会话自动选择 Switch 默认连接，并由界面发送测试消息、收到本地 fixture 回复。**严格 GUI 标记和 browser 工具往返仍待完成**：测试脚本已适配 Harness 自动追加的环境上下文，但操作端 Mac 锁屏暂停了 106 界面操作，未将本机脚本回归或 CI 工具检查记为 106 GUI 通过。真实供应商、computer 工具的 106 GUI 操作、正式签名/公证、公开发行服务及实际课堂性能继续单独验收。
+
+### 此前的 macOS 验证包
 
 - Switch 验证包：`release/macos/Huaqing Switch.app`。
 - HQHarness 验证包：HQHarness 仓库下的 `dist/mac-arm64/HQHarness.app`。
 
-最终验收补充：干净安装副本在标准完整构建后同样通过 6 个文件、35 项测试；Office 依赖只复用 SHA 校验的下载缓存，运行时资源重新生成。最终 Electron 界面与 ASAR 核对记录分别留存在本地 `validation/huaqing-harness-native-ui.json`、`validation/huaqing-harness-package-audit.json`。测试应用及本机端口已退出。本机磁盘和缓存清理明细仅保留在本地验证资料中。
+macOS 阶段的干净安装副本在标准完整构建后同样通过 6 个文件、35 项测试；Office 依赖只复用 SHA 校验的下载缓存，运行时资源重新生成。该阶段的 Electron 界面与 ASAR 核对记录分别留存在本地 `validation/huaqing-harness-native-ui.json`、`validation/huaqing-harness-package-audit.json`，相应测试应用及端口已退出。本机磁盘和缓存清理明细仅保留在本地验证资料中。
