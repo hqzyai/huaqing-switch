@@ -82,12 +82,10 @@ jobs:
           node-version: "22.12.0"
 
       - name: Setup pnpm
-        env:
-          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-        run: |
-          corepack enable
-          corepack install
-          pnpm --version
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: "10.12.3"
+          run_install: false
 
       - name: Get pnpm store directory
         id: pnpm-store
@@ -133,12 +131,16 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "22.12.0"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: "10.12.3"
+          run_install: false
+
       - name: Install pinned UI dependencies and generate native icons
         shell: bash
-        run: |
-          corepack enable
-          corepack install
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # rust-toolchain.toml 是编译器版本的唯一来源：直接装它，免得先装 stable 再被 rustup 换掉
       - name: Read pinned Rust toolchain
@@ -206,6 +208,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Prepare HQ assets for native compilation
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22.12.0"
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: "10.12.3"
+          run_install: false
+
+      - name: Install pinned UI dependencies and generate native icons
+        shell: bash
+        run: pnpm install --frozen-lockfile
 
       - name: Read pinned Rust toolchain
         id: rust-toolchain
