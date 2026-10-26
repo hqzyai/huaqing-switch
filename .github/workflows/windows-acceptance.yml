@@ -52,7 +52,7 @@ jobs:
           package-manager-cache: false
 
       - name: Test Windows connector acceptance script
-        run: node --test scripts/verify-harness-connector.test.mjs
+        run: node --test scripts/verify-harness-connector.test.mjs scripts/windows-installer.test.mjs
 
       - name: Setup pinned build Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -102,6 +102,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
           shared-key: backend
+          cache-on-failure: true
 
       - name: Check disk space before release build
         run: |
@@ -115,7 +116,33 @@ jobs:
 
       - name: Build unsigned release MSI
         # Tauri runs build:renderer, including prepare-brand-assets.mjs, before Cargo.
-        run: pnpm exec tauri build --ci --bundles msi --no-sign -- --locked
+        run: |
+          New-Item -ItemType Directory -Path 'validation/windows-diagnostics' -Force | Out-Null
+          pnpm exec tauri build --verbose --ci --bundles msi --no-sign -- --locked 2>&1 |
+            Tee-Object -FilePath 'validation/windows-diagnostics/tauri-build.log'
+          exit $LASTEXITCODE
+
+      - name: Label diagnostic artifacts
+        if: always()
+        run: |
+          $output = New-Item -ItemType Directory -Path 'validation/windows-diagnostics' -Force
+          @'
+          Build diagnostics only. Any included EXE is an unsigned intermediate binary.
+          This artifact is not an MSI installation package and does not establish installation acceptance.
+          '@ | Set-Content -Path (Join-Path $output.FullName 'README.txt') -Encoding utf8NoBOM
+
+      - name: Upload build diagnostics and intermediate executable
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: huaqing-switch-windows-x64-diagnostics-${{ github.run_id }}
+          path: |
+            validation/windows-diagnostics/
+            src-tauri/target/release/wix/
+            src-tauri/target/release/hq-model-switch.exe
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
 
       - name: Collect MSI and checksums
         run: |
