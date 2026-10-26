@@ -1,9 +1,19 @@
 // Real native Switch + real Harness/Pi adapters, against a deterministic local provider.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { spawn, spawnSync } from "node:child_process";
+import { createServer as createPortProbe } from "node:net";
+import { parseArgs } from "node:util";
+import { DatabaseSync } from "node:sqlite";
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import {
+  access,
+  mkdtemp,
+  mkdir,
+  readFile,
+  writeFile,
+  rm,
+} from "node:fs/promises";
 import { openSync, closeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, join, dirname } from "node:path";
@@ -11,326 +21,485 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-if (!process.argv[2])
-  throw new Error(
-    "Usage: node scripts/verify-harness-connector.mjs <HQHarness repository>",
-  );
-const harness = resolve(process.argv[2]);
-const binary = resolve(
-  root,
-  "src-tauri/target/debug/bundle/macos/Huaqing Switch.app/Contents/MacOS/hq-model-switch",
-);
-const home = await mkdtemp(join(tmpdir(), "huaqing-integration-"));
-const logPath = join(root, "validation/huaqing-native-e2e.log");
-const calls = [];
-let cancelled = false,
-  native,
-  child,
-  oldToken;
-const ids = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
-const fixture = createServer(async (req, res) => {
-  let text = "";
-  for await (const chunk of req) text += chunk;
-  const body = JSON.parse(text || "{}");
-  calls.push({ url: req.url, body, headers: req.headers });
-  const route = req.url?.split("/")[1];
-  if (route === "redirect") {
-    res.writeHead(302, { location: "/stolen" }).end();
-    return;
-  }
-  res.writeHead(200, { "Content-Type": "text/event-stream" });
-  const emit = (value, event) =>
-    res.write(
-      `${event ? "event: " + event + "\n" : ""}data: ${JSON.stringify(value)}\n\n`,
+const endpoint = "http://127.0.0.1:17621";
+
+/** Resolve CLI paths without requiring Python or a platform-specific shell. */
+export function parseOptions(args, platform = process.platform) {
+  const { values, positionals } = parseArgs({
+    args,
+    options: {
+      binary: { type: "string" },
+      "output-dir": { type: "string" },
+      "timeout-ms": { type: "string" },
+      help: { type: "boolean" },
+    },
+    allowPositionals: true,
+  });
+  if (values.help) return { help: true };
+  if (positionals.length !== 1)
+    throw new Error(
+      "Specify exactly one HQHarness repository path; use --help for usage",
     );
-  if (route === "chat") {
-    const base = {
-      id: "chat-test",
-      object: "chat.completion.chunk",
-      created: 1,
-      model: "upstream-chat",
-    };
-    if (text.includes("CANCEL_PROBE")) {
-      emit({
-        ...base,
-        choices: [
-          {
-            index: 0,
-            delta: { role: "assistant", content: "waiting" },
-            finish_reason: null,
-          },
-        ],
-      });
-      res.on("close", () => {
-        cancelled = true;
-      });
-      return;
+  const timeoutMs = Number(values["timeout-ms"] ?? 120000);
+  if (
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs < 1000 ||
+    timeoutMs > 600000
+  )
+    throw new Error("--timeout-ms must be an integer from 1000 to 600000");
+  return {
+    harness: resolve(positionals[0]),
+    binary: values.binary ? resolve(values.binary) : defaultBinary(platform),
+    outputDir: resolve(values["output-dir"] ?? join(root, "validation")),
+    timeoutMs,
+  };
+}
+
+/** The Tauri debug output for each native platform; packaged builds use --binary. */
+export function defaultBinary(platform) {
+  return platform === "darwin"
+    ? join(
+        root,
+        "src-tauri/target/debug/bundle/macos/Huaqing Switch.app/Contents/MacOS/hq-model-switch",
+      )
+    : join(
+        root,
+        "src-tauri/target/debug",
+        platform === "win32" ? "hq-model-switch.exe" : "hq-model-switch",
+      );
+}
+
+/** Refuse to take over the user's running Switch or any other listener. */
+export async function assertPortAvailable(port = 17621) {
+  const probe = createPortProbe();
+  await new Promise((resolve, reject) => {
+    probe.once("error", (error) =>
+      reject(
+        new Error(
+          error.code === "EADDRINUSE"
+            ? `Cannot reserve 127.0.0.1:${port} for isolated acceptance (${error.code}); stop the existing service explicitly before testing`
+            : `Cannot reserve 127.0.0.1:${port} for isolated acceptance (${error.code}); check local loopback permissions`,
+          { cause: error },
+        ),
+      ),
+    );
+    probe.listen({ host: "127.0.0.1", port, exclusive: true }, resolve);
+  });
+  await new Promise((resolve, reject) =>
+    probe.close((error) => (error ? reject(error) : resolve())),
+  );
+}
+
+/** Seed or update only the temporary test database using Node 24's SQLite. */
+export function writeFixtureStore(db, store) {
+  const connection = new DatabaseSync(db, { timeout: 5000 });
+  try {
+    connection.exec(
+      "CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT)",
+    );
+    connection
+      .prepare("INSERT OR REPLACE INTO settings VALUES(?,?)")
+      .run("hq.connections.v1", JSON.stringify(store));
+  } finally {
+    connection.close();
+  }
+}
+
+/** Stop an owned child and confirm exit before removing its temporary files. */
+export async function stopProcess(child, graceMs = 5000) {
+  if (
+    !child ||
+    !child.pid ||
+    child.exitCode !== null ||
+    child.signalCode !== null
+  )
+    return;
+  let closed = false;
+  const done = new Promise((resolve) =>
+    child.once("close", () => {
+      closed = true;
+      resolve();
+    }),
+  );
+  child.kill(process.platform === "win32" ? "SIGTERM" : "SIGINT");
+  await Promise.race([done, delay(graceMs, undefined, { ref: false })]);
+  if (!closed) {
+    child.kill("SIGKILL");
+    await Promise.race([done, delay(5000, undefined, { ref: false })]);
+    if (!closed)
+      throw new Error(
+        `Owned acceptance process ${child.pid} did not exit; its temporary files were preserved`,
+      );
+  }
+}
+
+/** Run native Switch and the real Harness/Pi adapters with disposable fixture data. */
+export async function runIntegration({
+  harness,
+  binary,
+  outputDir,
+  timeoutMs,
+}) {
+  if (Number(process.versions.node.split(".")[0]) < 24)
+    throw new Error(
+      "The connector acceptance requires Node.js 24 or later (matching HQHarness)",
+    );
+  const controller = new AbortController();
+  const interrupted = () =>
+    controller.abort(new Error("Connector acceptance interrupted"));
+  const timer = setTimeout(
+    () => controller.abort(new Error("Connector acceptance timed out")),
+    timeoutMs,
+  );
+  timer.unref();
+  process.once("SIGINT", interrupted);
+  process.once("SIGTERM", interrupted);
+  let home, fixture, native, child, oldToken, nativeError;
+  let phaseWork = Promise.resolve();
+  const calls = [];
+  let cancelled = false;
+  const request = (url, options = {}) =>
+    fetch(url, {
+      ...options,
+      redirect: "manual",
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]),
+    });
+  const status = async (url, options) => {
+    const response = await request(url, options);
+    try {
+      return response.status;
+    } finally {
+      await response.body?.cancel();
     }
-    emit({
-      ...base,
-      choices: [
-        {
-          index: 0,
-          delta: {
-            role: "assistant",
-            tool_calls: [
+  };
+  try {
+    await assertPortAvailable();
+    for (const path of [
+      binary,
+      join(harness, "build/harness-node-entry.mjs"),
+      join(harness, "packages/hqharness-model-access/index.js"),
+      join(harness, "node_modules/@deepseek-ai/dsh-llm/lib/index.js"),
+    ])
+      await access(path).catch((error) => {
+        throw new Error(`Missing acceptance input: ${path}`, { cause: error });
+      });
+    await mkdir(outputDir, { recursive: true });
+    await rm(join(outputDir, "huaqing-harness-e2e.json"), { force: true });
+    home = await mkdtemp(join(tmpdir(), "huaqing-integration-"));
+    const logPath = join(outputDir, "huaqing-native-e2e.log");
+    const ids = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    fixture = createServer(async (req, res) => {
+      let text = "";
+      for await (const chunk of req) text += chunk;
+      const body = JSON.parse(text || "{}");
+      calls.push({ url: req.url, body, headers: req.headers });
+      const route = req.url?.split("/")[1];
+      if (route === "redirect") {
+        res.writeHead(302, { location: "/stolen" }).end();
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "text/event-stream" });
+      const emit = (value, event) =>
+        res.write(
+          `${event ? "event: " + event + "\n" : ""}data: ${JSON.stringify(value)}\n\n`,
+        );
+      if (route === "chat") {
+        const base = {
+          id: "chat-test",
+          object: "chat.completion.chunk",
+          created: 1,
+          model: "upstream-chat",
+        };
+        if (text.includes("CANCEL_PROBE")) {
+          emit({
+            ...base,
+            choices: [
               {
                 index: 0,
-                id: "call_1",
-                type: "function",
-                function: {
-                  name: "browser_use",
-                  arguments: '{"action":"status"}',
-                },
+                delta: { role: "assistant", content: "waiting" },
+                finish_reason: null,
               },
             ],
-          },
-          finish_reason: null,
-        },
-      ],
-    });
-    emit({
-      ...base,
-      choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
-      usage: { prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 },
-    });
-    res.end("data: [DONE]\n\n");
-  } else if (route === "responses") {
-    const item = {
-      type: "function_call",
-      id: "fc_1",
-      call_id: "call_1",
-      name: "browser_use",
-      arguments: '{"action":"status"}',
-      status: "completed",
-    };
-    emit(
-      {
-        type: "response.created",
-        response: {
-          id: "resp_1",
-          created_at: 1,
-          status: "in_progress",
-          output: [],
-          model: "upstream-responses",
-        },
-      },
-      "response.created",
-    );
-    emit(
-      {
-        type: "response.output_item.added",
-        output_index: 0,
-        item: { ...item, arguments: "", status: "in_progress" },
-      },
-      "response.output_item.added",
-    );
-    emit(
-      {
-        type: "response.function_call_arguments.delta",
-        item_id: "fc_1",
-        output_index: 0,
-        delta: item.arguments,
-      },
-      "response.function_call_arguments.delta",
-    );
-    emit(
-      {
-        type: "response.function_call_arguments.done",
-        item_id: "fc_1",
-        output_index: 0,
-        arguments: item.arguments,
-      },
-      "response.function_call_arguments.done",
-    );
-    emit(
-      { type: "response.output_item.done", output_index: 0, item },
-      "response.output_item.done",
-    );
-    emit(
-      {
-        type: "response.completed",
-        response: {
-          id: "resp_1",
-          created_at: 1,
-          status: "completed",
-          model: "upstream-responses",
-          output: [item],
-          usage: {
-            input_tokens: 3,
-            output_tokens: 5,
-            total_tokens: 8,
-            input_tokens_details: { cached_tokens: 0 },
-            output_tokens_details: { reasoning_tokens: 0 },
-          },
-        },
-      },
-      "response.completed",
-    );
-    res.end();
-  } else if (route === "anthropic") {
-    emit(
-      {
-        type: "message_start",
-        message: {
-          id: "msg_1",
-          type: "message",
-          role: "assistant",
-          content: [],
-          model: "upstream-anthropic",
-          stop_reason: null,
-          stop_sequence: null,
-          usage: {
-            input_tokens: 3,
-            output_tokens: 0,
-            cache_creation_input_tokens: 0,
-            cache_read_input_tokens: 0,
-          },
-        },
-      },
-      "message_start",
-    );
-    emit(
-      {
-        type: "content_block_start",
-        index: 0,
-        content_block: {
-          type: "tool_use",
-          id: "call_1",
+          });
+          res.on("close", () => {
+            cancelled = true;
+          });
+          return;
+        }
+        emit({
+          ...base,
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: "call_1",
+                    type: "function",
+                    function: {
+                      name: "browser_use",
+                      arguments: '{"action":"status"}',
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        emit({
+          ...base,
+          choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+          usage: { prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 },
+        });
+        res.end("data: [DONE]\n\n");
+      } else if (route === "responses") {
+        const item = {
+          type: "function_call",
+          id: "fc_1",
+          call_id: "call_1",
           name: "browser_use",
-          input: {},
-        },
-      },
-      "content_block_start",
-    );
-    emit(
-      {
-        type: "content_block_delta",
-        index: 0,
-        delta: {
-          type: "input_json_delta",
-          partial_json: '{"action":"status"}',
-        },
-      },
-      "content_block_delta",
-    );
-    emit({ type: "content_block_stop", index: 0 }, "content_block_stop");
-    emit(
-      {
-        type: "message_delta",
-        delta: { stop_reason: "tool_use", stop_sequence: null },
-        usage: { output_tokens: 5 },
-      },
-      "message_delta",
-    );
-    emit({ type: "message_stop" }, "message_stop");
-    res.end();
-  } else {
-    res.end();
-  }
-});
-await new Promise((resolve) => fixture.listen(0, "127.0.0.1", resolve));
-const upstream = `http://127.0.0.1:${fixture.address().port}`;
-const store = {
-  revision: 1,
-  activeId: ids[0],
-  connections: ["chat", "responses", "anthropic", "redirect"].map(
-    (name, i) => ({
-      id: ids[i],
-      name,
-      protocol:
-        i === 1 ? "openai-responses" : i === 2 ? "anthropic" : "openai-chat",
-      baseUrl: `${upstream}/${name}${i === 2 ? "" : "/v1"}`,
-      model: `upstream-${name}`,
-      apiKey: `fixture-key-${name}`,
+          arguments: '{"action":"status"}',
+          status: "completed",
+        };
+        emit(
+          {
+            type: "response.created",
+            response: {
+              id: "resp_1",
+              created_at: 1,
+              status: "in_progress",
+              output: [],
+              model: "upstream-responses",
+            },
+          },
+          "response.created",
+        );
+        emit(
+          {
+            type: "response.output_item.added",
+            output_index: 0,
+            item: { ...item, arguments: "", status: "in_progress" },
+          },
+          "response.output_item.added",
+        );
+        emit(
+          {
+            type: "response.function_call_arguments.delta",
+            item_id: "fc_1",
+            output_index: 0,
+            delta: item.arguments,
+          },
+          "response.function_call_arguments.delta",
+        );
+        emit(
+          {
+            type: "response.function_call_arguments.done",
+            item_id: "fc_1",
+            output_index: 0,
+            arguments: item.arguments,
+          },
+          "response.function_call_arguments.done",
+        );
+        emit(
+          { type: "response.output_item.done", output_index: 0, item },
+          "response.output_item.done",
+        );
+        emit(
+          {
+            type: "response.completed",
+            response: {
+              id: "resp_1",
+              created_at: 1,
+              status: "completed",
+              model: "upstream-responses",
+              output: [item],
+              usage: {
+                input_tokens: 3,
+                output_tokens: 5,
+                total_tokens: 8,
+                input_tokens_details: { cached_tokens: 0 },
+                output_tokens_details: { reasoning_tokens: 0 },
+              },
+            },
+          },
+          "response.completed",
+        );
+        res.end();
+      } else if (route === "anthropic") {
+        emit(
+          {
+            type: "message_start",
+            message: {
+              id: "msg_1",
+              type: "message",
+              role: "assistant",
+              content: [],
+              model: "upstream-anthropic",
+              stop_reason: null,
+              stop_sequence: null,
+              usage: {
+                input_tokens: 3,
+                output_tokens: 0,
+                cache_creation_input_tokens: 0,
+                cache_read_input_tokens: 0,
+              },
+            },
+          },
+          "message_start",
+        );
+        emit(
+          {
+            type: "content_block_start",
+            index: 0,
+            content_block: {
+              type: "tool_use",
+              id: "call_1",
+              name: "browser_use",
+              input: {},
+            },
+          },
+          "content_block_start",
+        );
+        emit(
+          {
+            type: "content_block_delta",
+            index: 0,
+            delta: {
+              type: "input_json_delta",
+              partial_json: '{"action":"status"}',
+            },
+          },
+          "content_block_delta",
+        );
+        emit({ type: "content_block_stop", index: 0 }, "content_block_stop");
+        emit(
+          {
+            type: "message_delta",
+            delta: { stop_reason: "tool_use", stop_sequence: null },
+            usage: { output_tokens: 5 },
+          },
+          "message_delta",
+        );
+        emit({ type: "message_stop" }, "message_stop");
+        res.end();
+      } else {
+        res.end();
+      }
+    });
+    await new Promise((resolve, reject) => {
+      fixture.once("error", reject);
+      fixture.listen(0, "127.0.0.1", resolve);
+    });
+    const upstream = `http://127.0.0.1:${fixture.address().port}`;
+    const store = {
       revision: 1,
-      contextWindow: 32768,
-      maxOutputTokens: 4096,
-      supportsImages: false,
-    }),
-  ),
-};
-const db = join(home, ".hq-model-switch/hq-model-switch.db");
-await mkdir(dirname(db), { recursive: true, mode: 0o700 });
-function writeStore() {
-  const result = spawnSync(
-    "python3",
-    [
-      "-c",
-      `import sqlite3,sys,json
-p=json.load(sys.stdin);c=sqlite3.connect(p['db']);c.execute('CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT)');c.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',('hq.connections.v1',json.dumps(p['store'])));c.commit();c.close()`,
-    ],
-    { input: JSON.stringify({ db, store }), encoding: "utf8" },
-  );
-  assert.equal(result.status, 0, result.stderr);
-}
-writeStore();
-const connectorPath = join(home, ".huaqing-switch/connector.json");
-async function waitUntil(check, timeout = 15000) {
-  const end = Date.now() + timeout;
-  while (Date.now() < end) {
-    if (await check()) return;
-    await delay(50);
-  }
-  throw new Error("Integration wait timed out");
-}
-async function startNative() {
-  const fd = openSync(logPath, "a");
-  native = spawn(binary, [], {
-    cwd: home,
-    env: {
-      ...process.env,
-      CC_SWITCH_TEST_HOME: home,
-      NO_PROXY: "127.0.0.1,localhost",
-      no_proxy: "127.0.0.1,localhost",
-    },
-    stdio: ["ignore", fd, fd],
-  });
-  closeSync(fd);
-  await waitUntil(async () => {
-    try {
-      const c = JSON.parse(await readFile(connectorPath, "utf8"));
-      if (c.token === oldToken) return false;
-      const r = await fetch(c.endpoint + "/hq/manifest", {
-        headers: { Authorization: "Bearer " + c.token },
-      });
-      return r.ok;
-    } catch {
-      return false;
+      activeId: ids[0],
+      connections: ["chat", "responses", "anthropic", "redirect"].map(
+        (name, i) => ({
+          id: ids[i],
+          name,
+          protocol:
+            i === 1
+              ? "openai-responses"
+              : i === 2
+                ? "anthropic"
+                : "openai-chat",
+          baseUrl: `${upstream}/${name}${i === 2 ? "" : "/v1"}`,
+          model: `upstream-${name}`,
+          apiKey: `fixture-key-${name}`,
+          revision: 1,
+          contextWindow: 32768,
+          maxOutputTokens: 4096,
+          supportsImages: false,
+        }),
+      ),
+    };
+    const db = join(home, ".hq-model-switch/hq-model-switch.db");
+    await mkdir(dirname(db), { recursive: true, mode: 0o700 });
+    const writeStore = () => writeFixtureStore(db, store);
+    writeStore();
+    const connectorPath = join(home, ".huaqing-switch/connector.json");
+    async function waitUntil(check, timeout = 15000) {
+      const end = Date.now() + timeout;
+      while (Date.now() < end) {
+        controller.signal.throwIfAborted();
+        if (await check()) return;
+        await delay(50, undefined, { signal: controller.signal });
+      }
+      throw new Error("Integration wait timed out");
     }
-  }, 30000);
-  return JSON.parse(await readFile(connectorPath, "utf8"));
-}
-async function stopNative() {
-  if (native && native.exitCode === null) {
-    const p = native;
-    const done = new Promise((r) => p.once("exit", r));
-    p.kill("SIGINT");
-    await Promise.race([done, delay(5000)]);
-    if (p.exitCode === null && p.signalCode === null) p.kill("SIGKILL");
-  }
-  native = undefined;
-}
-const modelId = (i) => `hq-${ids[i]}-v1`;
-const entry = join(home, "harness-test.mjs");
-const moduleUrl = (name) =>
-  pathToFileURL(join(harness, "node_modules", name, "lib/index.js")).href;
-const config = join(home, "cordis.json");
-await writeFile(
-  config,
-  JSON.stringify([
-    { id: "llm", name: moduleUrl("@deepseek-ai/dsh-llm") },
-    {
-      id: "switch",
-      name: pathToFileURL(
-        join(harness, "packages/hqharness-model-access/index.js"),
-      ).href,
-    },
-  ]),
-);
-await writeFile(
-  entry,
-  `
+    async function startNative() {
+      await assertPortAvailable();
+      const fd = openSync(logPath, "a");
+      nativeError = undefined;
+      try {
+        native = spawn(binary, [], {
+          cwd: home,
+          env: {
+            ...process.env,
+            CC_SWITCH_TEST_HOME: home,
+            NO_PROXY: "127.0.0.1,localhost",
+            no_proxy: "127.0.0.1,localhost",
+          },
+          stdio: ["ignore", fd, fd],
+        });
+        native.once("error", (error) => {
+          nativeError = error;
+        });
+      } finally {
+        closeSync(fd);
+      }
+      await waitUntil(async () => {
+        if (nativeError)
+          throw new Error(`Switch failed to start: ${nativeError.message}`);
+        if (native.exitCode !== null || native.signalCode !== null)
+          throw new Error(
+            `Switch exited before becoming ready; inspect ${logPath}`,
+          );
+        try {
+          const c = JSON.parse(await readFile(connectorPath, "utf8"));
+          if (c.token === oldToken) return false;
+          assert.equal(c.endpoint, endpoint);
+          assert.equal(c.product, "huaqing-switch");
+          assert.match(c.token, /^[a-f0-9]{64}$/);
+          return (
+            (await status(endpoint + "/hq/manifest", {
+              headers: { Authorization: "Bearer " + c.token },
+            })) === 200
+          );
+        } catch {
+          return false;
+        }
+      }, 30000);
+      return JSON.parse(await readFile(connectorPath, "utf8"));
+    }
+    async function stopNative() {
+      await stopProcess(native);
+      native = undefined;
+    }
+    const modelId = (i) => `hq-${ids[i]}-v1`;
+    const entry = join(home, "harness-test.mjs");
+    const moduleUrl = (name) =>
+      pathToFileURL(join(harness, "node_modules", name, "lib/index.js")).href;
+    const config = join(home, "cordis.json");
+    await writeFile(
+      config,
+      JSON.stringify([
+        { id: "llm", name: moduleUrl("@deepseek-ai/dsh-llm") },
+        {
+          id: "switch",
+          name: pathToFileURL(
+            join(harness, "packages/hqharness-model-access/index.js"),
+          ).href,
+        },
+      ]),
+    );
+    await writeFile(
+      entry,
+      `
  import assert from 'node:assert/strict';import {setTimeout as delay} from 'node:timers/promises';import {boot} from ${JSON.stringify(moduleUrl("@deepseek-ai/dsh-app-boot"))};
  let selection={provider:'old-provider',model:'old-model'};const defaults=[];
  const ctx=await boot('huaqing-integration',${JSON.stringify(config)},[],ctx=>{ctx.provide('connection',{fetch:{register(){return()=>{}}}});ctx.provide('agentDefaultModel',{currentSelection:()=>selection,async saveSelection(value){selection=value;defaults.push(value)}})});
@@ -354,173 +523,227 @@ await writeFile(
   process.send({phase:'complete',defaults});console.log('HUAQING_HARNESS_E2E_PASS');
  }finally{await ctx.fiber.dispose()}
 `,
-);
-try {
-  const connector = await startNative();
-  oldToken = connector.token;
-  const headers = {
-    Authorization: "Bearer " + connector.token,
-    "Content-Type": "application/json",
-  };
-  assert.equal((await fetch(connector.endpoint + "/hq/manifest")).status, 401);
-  assert.equal(
-    (
-      await fetch(connector.endpoint + "/hq/manifest", {
+    );
+    const connector = await startNative();
+    oldToken = connector.token;
+    const headers = {
+      Authorization: "Bearer " + connector.token,
+      "Content-Type": "application/json",
+    };
+    assert.equal(await status(endpoint + "/hq/manifest"), 401);
+    assert.equal(
+      await status(connector.endpoint + "/hq/manifest", {
         headers: { ...headers, Origin: "https://hostile.invalid" },
-      })
-    ).status,
-    403,
-  );
-  const route = `${connector.endpoint}/hq/connections/${ids[0]}/1/v1/chat/completions`;
-  assert.equal(
-    (
-      await fetch(route, {
+      }),
+      403,
+    );
+    const route = `${connector.endpoint}/hq/connections/${ids[0]}/1/v1/chat/completions`;
+    assert.equal(
+      await status(route, {
         method: "POST",
         headers,
         body: JSON.stringify({ model: "wrong" }),
-      })
-    ).status,
-    400,
-  );
-  assert.equal(
-    (
-      await fetch(route, {
+      }),
+      400,
+    );
+    assert.equal(
+      await status(route, {
         method: "POST",
         headers,
         body: JSON.stringify({ model: modelId(0), max_tokens: 999999 }),
-      })
-    ).status,
-    400,
-  );
-  assert.equal(
-    (
-      await fetch(
+      }),
+      400,
+    );
+    assert.equal(
+      await status(
         `${connector.endpoint}/hq/connections/${ids[3]}/1/v1/chat/completions`,
         {
           method: "POST",
           headers,
           body: JSON.stringify({ model: modelId(3) }),
         },
-      )
-    ).status,
-    302,
-  );
-  let output = "";
-  const phases = [];
-  child = spawn(
-    process.execPath,
-    [join(harness, "build/harness-node-entry.mjs"), entry],
-    {
-      cwd: home,
-      env: {
-        ...process.env,
-        DSH_HOME: home,
-        HQHARNESS_MODEL_SOURCE: "huaqing-switch",
-        HUAQING_SWITCH_CONNECTOR_PATH: connectorPath,
-        NO_PROXY: "127.0.0.1,localhost",
-      },
-      stdio: ["ignore", "pipe", "pipe", "ipc"],
-    },
-  );
-  child.stdout.on("data", (chunk) => (output += chunk));
-  child.stderr.on("data", (chunk) => (output += chunk));
-  let phaseError;
-  child.on("message", async (value) => {
-    try {
-      phases.push(value.phase);
-      if (value.phase === "base") {
-        await waitUntil(() => cancelled);
-        await stopNative();
-        child.send("offline");
-      } else if (value.phase === "offline") {
-        const next = await startNative();
-        assert.notEqual(next.token, oldToken);
-        assert.equal(
-          (
-            await fetch(next.endpoint + "/hq/manifest", {
-              headers: { Authorization: "Bearer " + oldToken },
-            })
-          ).status,
-          401,
-        );
-        child.send("restarted");
-      } else if (value.phase === "restart") {
-        store.revision++;
-        store.activeId = ids[1];
-        writeStore();
-        child.send("default-changed");
-      } else if (value.phase === "pinned") {
-        store.revision++;
-        store.connections[0].revision++;
-        writeStore();
-        const latest = JSON.parse(await readFile(connectorPath, "utf8"));
-        assert.equal(
-          (
-            await fetch(route, {
-              method: "POST",
-              headers: { ...headers, Authorization: "Bearer " + latest.token },
-              body: JSON.stringify({ model: modelId(0) }),
-            })
-          ).status,
-          409,
-        );
-        child.send("edited");
-      }
-    } catch (error) {
-      phaseError = error;
-      child.kill("SIGTERM");
-    }
-  });
-  const result = await Promise.race([
-    new Promise((resolve) =>
-      child.once("exit", (code, signal) => resolve({ code, signal })),
-    ),
-    delay(60000, undefined, { ref: false }).then(() => {
-      child.kill("SIGTERM");
-      throw new Error("Harness integration timeout");
-    }),
-  ]);
-  if (phaseError) throw phaseError;
-  assert.equal(result.code, 0, output);
-  assert(output.includes("HUAQING_HARNESS_E2E_PASS"), output);
-  for (const call of calls) {
-    const route = call.url.split("/")[1];
-    assert.equal(call.body.model, `upstream-${route}`);
-    assert.equal(
-      route === "anthropic"
-        ? call.headers["x-api-key"]
-        : call.headers.authorization,
-      route === "anthropic"
-        ? `fixture-key-${route}`
-        : `Bearer fixture-key-${route}`,
+      ),
+      302,
     );
-    assert(!JSON.stringify(call.headers).includes(oldToken));
+    let output = "";
+    const phases = [];
+    child = spawn(
+      process.execPath,
+      [join(harness, "build/harness-node-entry.mjs"), entry],
+      {
+        cwd: home,
+        env: {
+          ...process.env,
+          DSH_HOME: home,
+          HQHARNESS_MODEL_SOURCE: "huaqing-switch",
+          HUAQING_SWITCH_CONNECTOR_PATH: connectorPath,
+          NO_PROXY: "127.0.0.1,localhost",
+        },
+        stdio: ["ignore", "pipe", "pipe", "ipc"],
+      },
+    );
+    const childClosed = new Promise((resolve) => {
+      child.once("error", (error) => resolve({ error }));
+      child.once("close", (code, signal) => resolve({ code, signal }));
+    });
+    child.stdout.on(
+      "data",
+      (chunk) => (output = (output + chunk).slice(-65536)),
+    );
+    child.stderr.on(
+      "data",
+      (chunk) => (output = (output + chunk).slice(-65536)),
+    );
+    let phaseError;
+    child.on("message", (value) => {
+      phaseWork = phaseWork
+        .then(async () => {
+          controller.signal.throwIfAborted();
+          try {
+            phases.push(value.phase);
+            if (value.phase === "base") {
+              await waitUntil(() => cancelled);
+              await stopNative();
+              child.send("offline");
+            } else if (value.phase === "offline") {
+              const next = await startNative();
+              assert.notEqual(next.token, oldToken);
+              assert.equal(
+                await status(next.endpoint + "/hq/manifest", {
+                  headers: { Authorization: "Bearer " + oldToken },
+                }),
+                401,
+              );
+              child.send("restarted");
+            } else if (value.phase === "restart") {
+              store.revision++;
+              store.activeId = ids[1];
+              writeStore();
+              child.send("default-changed");
+            } else if (value.phase === "pinned") {
+              store.revision++;
+              store.connections[0].revision++;
+              writeStore();
+              const latest = JSON.parse(await readFile(connectorPath, "utf8"));
+              assert.equal(
+                await status(route, {
+                  method: "POST",
+                  headers: {
+                    ...headers,
+                    Authorization: "Bearer " + latest.token,
+                  },
+                  body: JSON.stringify({ model: modelId(0) }),
+                }),
+                409,
+              );
+              child.send("edited");
+            }
+          } catch (error) {
+            phaseError = error;
+            controller.abort(error);
+            child.kill("SIGTERM");
+          }
+        })
+        .catch((error) => {
+          phaseError = error;
+          controller.abort(error);
+          child.kill("SIGTERM");
+        });
+    });
+    const result = await Promise.race([
+      childClosed,
+      new Promise((_, reject) => {
+        if (controller.signal.aborted) reject(controller.signal.reason);
+        else
+          controller.signal.addEventListener(
+            "abort",
+            () => reject(controller.signal.reason),
+            { once: true },
+          );
+      }),
+    ]);
+    await phaseWork;
+    if (result.error) throw result.error;
+    if (phaseError) throw phaseError;
+    assert.equal(result.code, 0, output);
+    assert(output.includes("HUAQING_HARNESS_E2E_PASS"), output);
+    for (const call of calls) {
+      const route = call.url.split("/")[1];
+      assert.equal(call.body.model, `upstream-${route}`);
+      assert.equal(
+        route === "anthropic"
+          ? call.headers["x-api-key"]
+          : call.headers.authorization,
+        route === "anthropic"
+          ? `fixture-key-${route}`
+          : `Bearer fixture-key-${route}`,
+      );
+      assert(!JSON.stringify(call.headers).includes(oldToken));
+    }
+    assert(cancelled);
+    assert(!calls.some((call) => call.url === "/stolen"));
+    const report = {
+      passed: true,
+      platform: process.platform,
+      architecture: process.arch,
+      nodeVersion: process.version,
+      phases,
+      protocols: ["openai-chat", "openai-responses", "anthropic"],
+      upstreamRequests: calls.length,
+      cancellationPropagated: cancelled,
+      credentialRotation: true,
+      defaultSwitchPreservesPinnedModel: true,
+      editedModelRejected: true,
+      legacyProviderBlocked: true,
+      scope:
+        "Real native Switch and real Harness/Pi runtime; deterministic local API fixture, no paid model call",
+    };
+    await writeFile(
+      join(outputDir, "huaqing-harness-e2e.json"),
+      JSON.stringify(report, null, 2),
+    );
+    console.log(JSON.stringify(report));
+  } catch (error) {
+    if (controller.signal.aborted) throw controller.signal.reason;
+    throw error;
+  } finally {
+    controller.abort(new Error("Connector acceptance cleanup"));
+    clearTimeout(timer);
+    process.removeListener("SIGINT", interrupted);
+    process.removeListener("SIGTERM", interrupted);
+    const cleanup = await Promise.allSettled([stopProcess(child), phaseWork]);
+    const stop = await Promise.allSettled([stopProcess(native)]);
+    if (fixture?.listening) {
+      fixture.closeAllConnections();
+      await new Promise((resolve) => fixture.close(resolve));
+    }
+    const failed = [...cleanup, ...stop].find(
+      (result) => result.status === "rejected",
+    );
+    if (failed) throw failed.reason;
+    if (home) await rm(home, { recursive: true, force: true });
   }
-  assert(cancelled);
-  assert(!calls.some((call) => call.url === "/stolen"));
-  const report = {
-    passed: true,
-    phases,
-    protocols: ["openai-chat", "openai-responses", "anthropic"],
-    upstreamRequests: calls.length,
-    cancellationPropagated: cancelled,
-    credentialRotation: true,
-    defaultSwitchPreservesPinnedModel: true,
-    editedModelRejected: true,
-    legacyProviderBlocked: true,
-    scope:
-      "Real native Switch and real Harness/Pi runtime; deterministic local API fixture, no paid model call",
-  };
-  await writeFile(
-    join(root, "validation/huaqing-harness-e2e.json"),
-    JSON.stringify(report, null, 2),
-  );
-  console.log(JSON.stringify(report));
-} finally {
-  if (child && child.exitCode === null && child.signalCode === null)
-    child.kill("SIGTERM");
-  await stopNative();
-  fixture.closeAllConnections();
-  await new Promise((resolve) => fixture.close(resolve));
-  await rm(home, { recursive: true, force: true });
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  try {
+    const options = parseOptions(process.argv.slice(2));
+    if (options.help)
+      console.log(`Usage: node scripts/verify-harness-connector.mjs <HQHarness repository> [options]
+
+Requires Node.js 24+, built native Switch, and installed HQHarness dependencies.
+  --binary <path>       Native Switch executable (default: platform debug build)
+  --output-dir <path>   Logs and JSON report (default: validation/)
+  --timeout-ms <ms>     Whole-run deadline, 1000..600000 (default: 120000)
+
+Uses a disposable home/profile and local fixture keys. Port 17621 must be free.
+Existing services are never stopped. No paid model requests are made.`);
+    else await runIntegration(options);
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
 }

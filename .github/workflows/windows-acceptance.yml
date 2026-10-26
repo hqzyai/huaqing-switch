@@ -1,0 +1,155 @@
+name: Windows acceptance package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths: [".github/workflows/windows-acceptance.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-acceptance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Unsigned Windows x64 MSI
+    runs-on: windows-2025
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: "true"
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - name: Checkout dev source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'dev' }}
+          persist-credentials: false
+
+      - name: Check disk space and native build tools
+        run: |
+          $disk = Get-PSDrive -Name C
+          $disk | Select-Object Name, Used, Free | Format-Table
+          if ($disk.Free -lt 50GB) { throw 'Windows build requires at least 50 GiB free space.' }
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $installation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $installation) { throw 'MSVC C++ build tools are unavailable.' }
+          Write-Host "MSVC installation: $installation"
+
+      - name: Setup Node.js for connector script regression
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Test Windows connector acceptance script
+        run: node --test scripts/verify-harness-connector.test.mjs
+
+      - name: Setup pinned build Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22.12.0"
+          package-manager-cache: false
+
+      - name: Setup pinned pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: "10.12.3"
+          run_install: false
+
+      - name: Get pnpm store directory
+        run: |
+          $version = pnpm --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($version -ne '10.12.3') { throw "Unexpected pnpm version: $version" }
+          "path=$(pnpm store path --silent)" >> $env:GITHUB_OUTPUT
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        id: pnpm-store
+
+      - name: Cache pnpm store
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+
+      - name: Install locked dependencies and generate brand assets
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify pinned Rust toolchain
+        run: |
+          if (-not (Select-String -Path rust-toolchain.toml -Pattern '^channel\s*=\s*"1\.95"\s*$' -Quiet)) {
+            throw 'Update this acceptance workflow when the pinned Rust toolchain changes.'
+          }
+
+      - name: Setup pinned Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.95"
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: backend
+
+      - name: Check disk space before release build
+        run: |
+          $disk = Get-PSDrive -Name C
+          $disk | Select-Object Name, Used, Free | Format-Table
+          if ($disk.Free -lt 50GB) { throw 'Less than 50 GiB remains after dependency/cache setup.' }
+          node --version
+          pnpm --version
+          rustc --version
+          cargo --version
+
+      - name: Build unsigned release MSI
+        # Tauri runs build:renderer, including prepare-brand-assets.mjs, before Cargo.
+        run: pnpm exec tauri build --ci --bundles msi --no-sign -- --locked
+
+      - name: Collect MSI and checksums
+        run: |
+          $files = @(Get-ChildItem -Path 'src-tauri/target/release/bundle/msi' -Filter '*.msi' -File)
+          if ($files.Count -ne 1) { throw "Expected one MSI, found $($files.Count)." }
+          $output = New-Item -ItemType Directory -Path 'validation/windows-package' -Force
+          $msi = Copy-Item -LiteralPath $files[0].FullName -Destination $output.FullName -PassThru
+          $hash = (Get-FileHash -LiteralPath $msi.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($msi.Name)" | Set-Content -Path (Join-Path $output.FullName 'SHA256SUMS.txt') -Encoding utf8NoBOM
+          $source = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $signature = (Get-AuthenticodeSignature -LiteralPath $msi.FullName).Status.ToString()
+          if ($signature -ne 'NotSigned') { throw "Unexpected MSI signature status: $signature" }
+          @{
+            product = 'Huaqing Switch'
+            sourceCommit = $source
+            sourceBranch = 'dev'
+            target = 'x86_64-pc-windows-msvc'
+            signing = 'unsigned acceptance build'
+            authenticodeStatus = $signature
+            installScope = 'per-user'
+            file = $msi.Name
+            sha256 = $hash
+            workflowRun = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          } | ConvertTo-Json | Set-Content -Path (Join-Path $output.FullName 'package.json') -Encoding utf8NoBOM
+          "Unsigned acceptance MSI: **$($msi.Name)**; source: **$source**; SHA256: ``$hash``." >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload unsigned acceptance package
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: huaqing-switch-windows-x64-unsigned-${{ github.run_id }}
+          path: validation/windows-package/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Report final disk space
+        if: always()
+        run: Get-PSDrive -Name C | Select-Object Name, Used, Free | Format-Table

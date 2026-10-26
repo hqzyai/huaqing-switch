@@ -55,17 +55,38 @@ HQHarness：`src/main/huaqing-switch.ts`、主进程运行时环境、preload �
 # Switch 仓库；启动实际原生应用和实际 Harness/Pi runtime，用本地确定性 API 测试
 node scripts/verify-harness-connector.mjs /path/to/HQHarness
 
+# Windows PowerShell；使用该机器上构建的原生可执行文件
+node scripts/verify-harness-connector.mjs C:\src\HQHarness --binary C:\src\huaqing-switch\src-tauri\target\debug\hq-model-switch.exe
+
+# 自定义构建目录或安装包时，显式指定二进制和证据输出目录
+node scripts/verify-harness-connector.mjs /path/to/HQHarness --binary /path/to/hq-model-switch --output-dir /path/to/validation --timeout-ms 120000
+
+# 脚本自身回归；无需构建原生应用或调用付费模型
+node --test scripts/verify-harness-connector.test.mjs
+
 # HQHarness 仓库
 node node_modules/typescript/bin/tsc --noEmit -p tsconfig.node.json
 node node_modules/vitest/vitest.mjs run test/huaqing-switch.test.mjs test/huaqing-switch-env.test.ts test/model-access-harness.test.ts test/desktop-onboarding.test.ts test/focused-client-runtime.test.ts test/model-settings-render.test.mjs
 npm run build
 ```
 
+联调脚本要求 Node.js 24 或更高版本，与 HQHarness 开发要求一致；直接使用 Node 内置 SQLite，不需要 Python 或外部 sqlite3。默认二进制为当前平台的 Tauri debug 产物：Windows/Linux 使用 `src-tauri/target/debug/hq-model-switch[.exe]`，macOS 使用该目录中 bundle 内的可执行文件。使用 release、自定义 `CARGO_TARGET_DIR` 或已安装应用时传入 `--binary`；HQHarness 路径须包含已安装依赖、现有 Switch 插件和 `build/harness-node-entry.mjs`。路径含空格时使用 shell 对应的引号。
+
+每次启动前检查固定端口 17621，已有服务占用时直接停止验收，不终止或改写用户的 Switch。验收使用独立临时 home、数据库及 Harness Profile；所有上游连接均指向本次创建的回环 fixture。输出目录自动创建，开始新验收时移除该目录里旧的成功报告，日志和成功 JSON 保存在临时 home 之外。脚本发出的控制探测每次最多 5 秒，整个验收默认最多 120 秒，可用 `--timeout-ms` 设置 1000–600000 毫秒；超时、中断和失败均关闭本次子进程及监听器，确认退出后再删除临时数据。无法确认子进程退出时保留临时文件并报错。脚本回归覆盖路径解析、端口占用保护、SQLite 更新、提前退出、强制终止、整体验收超时及旧报告失效；跨平台路径测试不替代对应系统的原生联调。
+
 实际检查包括：三协议流式工具调用、密钥注入及模型改写、无鉴权/浏览器来源拒绝、输出上限、重定向不泄露凭证、取消传播、重启凭证轮换、默认切换后原会话保持原连接、编辑后拒绝过期版本、旧供应商拦截。原生联调结果留存在本地 `validation/huaqing-harness-e2e.json`；验证目录不随源码提交。
 
 已完成 Switch 原生存储测试、相关前端检查、HQHarness 类型检查和 6 个文件共 35 项相关测试；从不含 node_modules/生成目录的源码副本执行完整 `npm ci` 和 postinstall 补丁重放成功。两端 macOS arm64 未签名验证包构建成功。真实付费供应商调用、Windows/Linux 原生安装启动、正式签名/公证和发行服务仍需对应环境验收，不能把本轮本地协议测试等同于这些验证。
 
 ## 构建产物与验收记录
+
+### Windows 安装验收包
+
+`.github/workflows/windows-acceptance.yml` 在 Windows 原生 runner 上从 `dev` 构建 MSI。首次提交该工作流会触发构建，后续可在 Actions 中手动执行。它使用固定的 Node、pnpm 和 Rust 版本及锁文件，先执行 Windows 验收脚本回归，再通过标准 Tauri release 构建生成当前用户安装包；产物同时包含 SHA256、源码提交和未签名状态，不创建正式 Release。
+
+下载 Actions 产物后先核对 `SHA256SUMS.txt` 与 `package.json` 中的源码提交。安装可以使用 `msiexec /i <完整 MSI 路径> /qn /norestart CREATEDESKTOPSHORTCUT=0`；安装后仍须在目标 Windows 上核对版本、启动界面、本机服务和实际 HQHarness/Pi 调用。构建成功、安装成功与模型请求成功分别记录。未签名验收包不能作为正式签名发行包。
+
+连接编辑器的字段区支持滚动，标题与保存/取消操作保留在弹窗内，覆盖默认 Windows 窗口及键盘提交。
 
 - Switch 验证包：`release/macos/Huaqing Switch.app`。
 - HQHarness 验证包：HQHarness 仓库下的 `dist/mac-arm64/HQHarness.app`。

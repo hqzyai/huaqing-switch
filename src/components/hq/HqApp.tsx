@@ -527,142 +527,144 @@ function ConnectionForm({
     });
   };
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <fieldset disabled={busy} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="hq-name">连接名称</Label>
-          <Input
-            id="hq-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            maxLength={80}
-            autoFocus
-            placeholder="例如：开发环境"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="hq-protocol">API 协议</Label>
-          <Select
-            value={protocol}
-            onValueChange={(value: HqProtocol) => setProtocol(value)}
-            disabled={busy}
-          >
-            <SelectTrigger id="hq-protocol">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(PROTOCOLS).map(([value, title]) => (
-                <SelectItem key={value} value={value}>
-                  {title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="hq-url">API 基础地址</Label>
-          <Input
-            id="hq-url"
-            type="url"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            required
-            maxLength={2048}
-            placeholder={
-              protocol === "anthropic"
-                ? "https://api.anthropic.com"
-                : "https://api.example.com/v1"
-            }
-            autoCapitalize="none"
-            spellCheck={false}
-          />
+    <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-1">
+        <fieldset disabled={busy} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="hq-name">连接名称</Label>
+            <Input
+              id="hq-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              maxLength={80}
+              autoFocus
+              placeholder="例如：开发环境"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hq-protocol">API 协议</Label>
+            <Select
+              value={protocol}
+              onValueChange={(value: HqProtocol) => setProtocol(value)}
+              disabled={busy}
+            >
+              <SelectTrigger id="hq-protocol">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(PROTOCOLS).map(([value, title]) => (
+                  <SelectItem key={value} value={value}>
+                    {title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hq-url">API 基础地址</Label>
+            <Input
+              id="hq-url"
+              type="url"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              required
+              maxLength={2048}
+              placeholder={
+                protocol === "anthropic"
+                  ? "https://api.anthropic.com"
+                  : "https://api.example.com/v1"
+              }
+              autoCapitalize="none"
+              spellCheck={false}
+            />
+            <p className="text-caption text-fg-2">
+              填写服务商提供的基础地址，不含具体推理接口路径。
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hq-model">模型 ID</Label>
+            <Input
+              id="hq-model"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              required
+              maxLength={256}
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="服务商提供的模型 ID"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hq-key">API Key</Label>
+            <Input
+              id="hq-key"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              disabled={clearKey}
+              maxLength={8192}
+              autoComplete="new-password"
+              spellCheck={false}
+              aria-describedby="hq-key-help"
+            />
+            <p id="hq-key-help" className="text-caption text-fg-2">
+              {connection?.apiKeyConfigured
+                ? "留空将保留已保存的密钥。"
+                : "无需鉴权的本地服务可留空。"}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="hq-context">上下文本地限制</Label>
+              <Input
+                id="hq-context"
+                type="number"
+                min={1024}
+                max={2000000}
+                step={1}
+                required
+                value={contextWindow}
+                onChange={(e) => setContextWindow(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hq-output">单次输出上限</Label>
+              <Input
+                id="hq-output"
+                type="number"
+                min={1}
+                max={Number(contextWindow) || 2000000}
+                step={1}
+                required
+                value={maxOutputTokens}
+                onChange={(e) => setMaxOutputTokens(e.target.value)}
+              />
+            </div>
+          </div>
           <p className="text-caption text-fg-2">
-            填写服务商提供的基础地址，不含具体推理接口路径。
+            这是客户端使用的限制，请按模型实际能力调整，不代表服务商公布的容量。
           </p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="hq-model">模型 ID</Label>
-          <Input
-            id="hq-model"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            required
-            maxLength={256}
-            autoCapitalize="none"
-            spellCheck={false}
-            placeholder="服务商提供的模型 ID"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="hq-key">API Key</Label>
-          <Input
-            id="hq-key"
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            disabled={clearKey}
-            maxLength={8192}
-            autoComplete="new-password"
-            spellCheck={false}
-            aria-describedby="hq-key-help"
-          />
-          <p id="hq-key-help" className="text-caption text-fg-2">
-            {connection?.apiKeyConfigured
-              ? "留空将保留已保存的密钥。"
-              : "无需鉴权的本地服务可留空。"}
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="hq-context">上下文本地限制</Label>
-            <Input
-              id="hq-context"
-              type="number"
-              min={1024}
-              max={2000000}
-              step={1}
-              required
-              value={contextWindow}
-              onChange={(e) => setContextWindow(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="hq-output">单次输出上限</Label>
-            <Input
-              id="hq-output"
-              type="number"
-              min={1}
-              max={Number(contextWindow) || 2000000}
-              step={1}
-              required
-              value={maxOutputTokens}
-              onChange={(e) => setMaxOutputTokens(e.target.value)}
-            />
-          </div>
-        </div>
-        <p className="text-caption text-fg-2">
-          这是客户端使用的限制，请按模型实际能力调整，不代表服务商公布的容量。
-        </p>
-        <label className="flex min-h-8 items-center gap-2 text-body">
-          <input
-            type="checkbox"
-            checked={supportsImages}
-            onChange={(e) => setSupportsImages(e.target.checked)}
-          />
-          此模型支持图片输入（请先确认服务商支持）
-        </label>
-        {connection?.apiKeyConfigured && (
           <label className="flex min-h-8 items-center gap-2 text-body">
             <input
               type="checkbox"
-              checked={clearKey}
-              onChange={(e) => setClearKey(e.target.checked)}
+              checked={supportsImages}
+              onChange={(e) => setSupportsImages(e.target.checked)}
             />
-            清除已保存的密钥
+            此模型支持图片输入（请先确认服务商支持）
           </label>
-        )}
-      </fieldset>
+          {connection?.apiKeyConfigured && (
+            <label className="flex min-h-8 items-center gap-2 text-body">
+              <input
+                type="checkbox"
+                checked={clearKey}
+                onChange={(e) => setClearKey(e.target.checked)}
+              />
+              清除已保存的密钥
+            </label>
+          )}
+        </fieldset>
+      </div>
       <DialogFooter>
         <Button
           type="button"
