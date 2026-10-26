@@ -37,7 +37,9 @@ jobs:
         run: |
           $disk = Get-PSDrive -Name C
           $disk | Select-Object Name, Used, Free | Format-Table
-          if ($disk.Free -lt 50GB) { throw 'Windows build requires at least 50 GiB free space.' }
+          # Hosted runners are disposable; reserve 20 GiB for this native build.
+          # The user's 50 GiB workstation cleanup threshold does not describe this VM.
+          if ($disk.Free -lt 20GB) { throw 'Windows acceptance build requires at least 20 GiB free space.' }
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
           $installation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $installation) { throw 'MSVC C++ build tools are unavailable.' }
@@ -105,7 +107,7 @@ jobs:
         run: |
           $disk = Get-PSDrive -Name C
           $disk | Select-Object Name, Used, Free | Format-Table
-          if ($disk.Free -lt 50GB) { throw 'Less than 50 GiB remains after dependency/cache setup.' }
+          if ($disk.Free -lt 15GB) { throw 'Less than 15 GiB remains after dependency/cache setup.' }
           node --version
           pnpm --version
           rustc --version
