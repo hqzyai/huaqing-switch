@@ -309,8 +309,12 @@ pub fn get_claude_settings_path() -> PathBuf {
     settings
 }
 
-/// 获取应用配置目录路径 (~/.hq-model-switch)
+/// 获取应用配置目录路径；显式测试 home 优先于用户保存的目录和 Windows 旧路径回退。
 pub fn get_app_config_dir() -> PathBuf {
+    if let Some(home) = test_home_override() {
+        return home.join(".hq-model-switch");
+    }
+
     if let Some(custom) = crate::app_store::get_app_config_dir_override() {
         return custom;
     }
@@ -321,16 +325,6 @@ pub fn get_app_config_dir() -> PathBuf {
     // v3.10.3 可能在 `HOME/.hq-model-switch/` 下创建/使用了数据库。
     // 这里仅在“默认位置没有数据库”时回退到旧位置，避免再次出现“供应商消失”问题，
     // 同时也避免新安装因为 `HOME` 被设置而写入非预期路径。
-    //
-    // `CC_SWITCH_TEST_HOME` 是测试用的显式 home 覆盖，必须在这里短路：测试的临时
-    // 目录本来就不带 hq-model-switch.db，若不先返回，下面的 HOME 回退会把测试指向真实
-    // 用户库（Windows 上 runner 的 HOME 下常常确实有该 db），既污染用户数据，又让
-    // 隔离测试读到别人写的状态而失败。
-    #[cfg(windows)]
-    if test_home_override().is_some() {
-        return default_dir;
-    }
-
     #[cfg(windows)]
     {
         let default_db = default_dir.join("hq-model-switch.db");

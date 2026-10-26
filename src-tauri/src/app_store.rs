@@ -133,3 +133,59 @@ pub fn migrate_app_config_dir_from_settings(app: &tauri::AppHandle) -> Result<()
     let _ = refresh_app_config_dir_override(app);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    struct RestorePaths {
+        test_home: Option<OsString>,
+        cached_override: Option<PathBuf>,
+    }
+
+    impl Drop for RestorePaths {
+        fn drop(&mut self) {
+            match &self.test_home {
+                Some(value) => std::env::set_var("CC_SWITCH_TEST_HOME", value),
+                None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
+            }
+            update_cached_override(self.cached_override.clone());
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn explicit_test_home_overrides_cached_config_directory() {
+        let _restore = RestorePaths {
+            test_home: std::env::var_os("CC_SWITCH_TEST_HOME"),
+            cached_override: get_app_config_dir_override(),
+        };
+        let persisted_directory = tempfile::tempdir().unwrap();
+        let test_home = tempfile::tempdir().unwrap();
+        update_cached_override(Some(persisted_directory.path().to_path_buf()));
+
+        std::env::remove_var("CC_SWITCH_TEST_HOME");
+        assert_eq!(
+            crate::config::get_app_config_dir(),
+            persisted_directory.path()
+        );
+
+        std::env::set_var("CC_SWITCH_TEST_HOME", test_home.path());
+        assert_eq!(crate::config::get_home_dir(), test_home.path());
+        assert_eq!(
+            crate::config::get_app_config_dir(),
+            test_home.path().join(".hq-model-switch")
+        );
+        assert_eq!(
+            get_app_config_dir_override(),
+            Some(persisted_directory.path().to_path_buf())
+        );
+
+        std::env::set_var("CC_SWITCH_TEST_HOME", " \t ");
+        assert_eq!(
+            crate::config::get_app_config_dir(),
+            persisted_directory.path()
+        );
+    }
+}
