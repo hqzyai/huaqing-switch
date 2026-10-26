@@ -49,6 +49,11 @@ test("each bundled resource uses an HKCU key path and preserves its target direc
   for (const component of components) {
     const metadata = attributes(component[1]);
     const body = component[2];
+    assert.match(
+      metadata.Guid,
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      "WiX requires an explicit stable GUID when a registry-keypath component also contains a file",
+    );
     assert.notEqual(
       metadata.KeyPath,
       "yes",
