@@ -174,7 +174,7 @@ export function ClaudeStackModelsField({
               }
               className="h-7 gap-1"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               {t("providerForm.addStackModel", { defaultValue: "手动添加" })}
             </Button>
           </div>

@@ -395,7 +395,7 @@ export const XaiOAuthSection: React.FC<XaiOAuthSectionProps> = ({
               {t("xaiOauth.enterCode", "若浏览器未自动填入，请输入：")}
             </p>
             <div className="flex items-center justify-center gap-2">
-              <code className="rounded border bg-surface px-4 py-2 font-mono text-2xl font-bold tracking-wider">
+              <code className="rounded border bg-surface px-4 py-2 font-mono text-2xl font-semibold tracking-wider">
                 {deviceCode.user_code}
               </code>
               <HoverTip content={t("common.copy")}>
@@ -423,7 +423,7 @@ export const XaiOAuthSection: React.FC<XaiOAuthSectionProps> = ({
               className="inline-flex items-center gap-1 text-sm text-fg-1 hover:underline"
             >
               {deviceCode.verification_uri}
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="h-4 w-4" />
             </a>
           </div>
           <div className="text-center">

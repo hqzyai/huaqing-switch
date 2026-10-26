@@ -240,7 +240,7 @@ export function ManagedAccountsGroup({
             aria-describedby={busy ? pendingId : undefined}
             onClick={add}
           >
-            <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+            <Plus className="h-4 w-4" strokeWidth={2} />
             {t("authCenter.addAccount", { defaultValue: "添加账号" })}
           </Button>
         )}
@@ -281,7 +281,7 @@ export function ManagedAccountsGroup({
 
       {status === "loading" && (
         <div className="flex items-center gap-2 border-t border-border py-3.5 pe-3 ps-4 text-caption text-fg-2">
-          <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" />
+          <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
           {t("authCenter.statusLoading", { defaultValue: "正在加载账号…" })}
         </div>
       )}
@@ -302,7 +302,7 @@ export function ManagedAccountsGroup({
             size="compact"
             onClick={onRetryStatus}
           >
-            <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <RefreshCw className="h-4 w-4" strokeWidth={1.5} />
             {t("authCenter.retry", { defaultValue: "重试" })}
           </Button>
         </div>
@@ -341,7 +341,7 @@ export function ManagedAccountsGroup({
           >
             <span
               aria-hidden="true"
-              className="flex h-3.5 w-3.5 items-center justify-center"
+              className="flex h-4 w-4 items-center justify-center"
             >
               <ProviderIcon icon={iconName} name={name} size={14} />
             </span>
@@ -391,7 +391,7 @@ export function ManagedAccountsGroup({
                   className="gap-1"
                   onClick={openPage}
                 >
-                  <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  <ExternalLink className="h-4 w-4" strokeWidth={1.5} />
                   {t("authCenter.pending.reopen", {
                     defaultValue: "重新打开登录页",
                   })}
@@ -423,7 +423,7 @@ export function ManagedAccountsGroup({
                       })}
                       onClick={() => void copyCode()}
                     >
-                      <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      <Copy className="h-4 w-4" strokeWidth={1.5} />
                     </Button>
                   </HoverTip>
                   <HoverTip
@@ -440,7 +440,7 @@ export function ManagedAccountsGroup({
                       })}
                       onClick={openPage}
                     >
-                      <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      <ExternalLink className="h-4 w-4" strokeWidth={1.5} />
                     </Button>
                   </HoverTip>
                 </div>

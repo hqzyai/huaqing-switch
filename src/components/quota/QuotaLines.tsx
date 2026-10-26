@@ -659,7 +659,7 @@ export function QuotaBars({
                   aria-label={t("subscription.refresh")}
                 >
                   <RefreshCw
-                    className={cn("h-3 w-3", loading && "animate-spin")}
+                    className={cn("h-4 w-4", loading && "animate-spin")}
                   />
                 </button>
               </HoverTip>

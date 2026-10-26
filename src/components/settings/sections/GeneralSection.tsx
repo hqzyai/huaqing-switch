@@ -138,7 +138,7 @@ export function GeneralSection({
             control={
               <Button variant="quiet" size="compact" onClick={onOpenApps}>
                 {t("settings.general.goToApps")}
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight className="h-4 w-4" />
               </Button>
             }
           />

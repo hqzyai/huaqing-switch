@@ -146,7 +146,7 @@ export function FieldError({
     >
       <CircleAlert
         aria-hidden="true"
-        className="mt-0.5 h-3.5 w-3.5 shrink-0"
+        className="mt-0.5 h-4 w-4 shrink-0"
         strokeWidth={1.5}
       />
       <span>{children}</span>
@@ -188,7 +188,7 @@ export function DisclosureButton({
       onClick={onToggle}
       className="-ms-1 inline-flex h-8 items-center gap-1.5 self-start whitespace-nowrap rounded-control pe-2 ps-1 text-body font-medium text-fg-1 transition-colors hover:bg-subtle"
     >
-      <Icon aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
+      <Icon aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
       {children}
       {hint && (
         <span className="text-caption font-normal text-fg-2">{hint}</span>

@@ -286,7 +286,7 @@ export function BackupListSection({
               }
             }}
           >
-            <Download className="h-3 w-3 mr-1" />
+            <Download className="h-4 w-4 mr-1" />
             {isCreating
               ? t("settings.backupManager.creating", {
                   defaultValue: "Backing up...",
@@ -337,7 +337,7 @@ export function BackupListSection({
                         onClick={handleConfirmRename}
                         disabled={isRenaming || !editValue.trim()}
                       >
-                        <Check className="h-3.5 w-3.5" />
+                        <Check className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -346,7 +346,7 @@ export function BackupListSection({
                         onClick={handleCancelRename}
                         disabled={isRenaming}
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                   ) : (
@@ -372,7 +372,7 @@ export function BackupListSection({
                         disabled={isRestoring || isRenaming || isDeleting}
                         aria-label={renameLabel}
                       >
-                        <Pencil className="h-3 w-3" />
+                        <Pencil className="h-4 w-4" />
                       </Button>
                     </HoverTip>
                     <HoverTip content={deleteLabel}>
@@ -384,7 +384,7 @@ export function BackupListSection({
                         disabled={isRestoring || isDeleting}
                         aria-label={deleteLabel}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </HoverTip>
                     <Button
@@ -394,7 +394,7 @@ export function BackupListSection({
                       disabled={isRestoring || isDeleting}
                       onClick={() => setConfirmFilename(backup.filename)}
                     >
-                      <RotateCcw className="h-3 w-3 mr-1" />
+                      <RotateCcw className="h-4 w-4 mr-1" />
                       {isRestoring
                         ? t("settings.backupManager.restoring", {
                             defaultValue: "Restoring...",

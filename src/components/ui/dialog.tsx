@@ -65,7 +65,7 @@ const DialogContent = React.forwardRef<
 
     const variantClass = {
       default:
-        "fixed left-1/2 top-1/2 flex flex-col w-full max-w-lg max-h-[90vh] translate-x-[-50%] translate-y-[-50%] border border-border bg-surface text-fg-1 shadow-v7-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-dialog",
+        "fixed left-1/2 top-1/2 flex flex-col w-[calc(100%-2rem)] max-w-[480px] max-h-[90vh] translate-x-[-50%] translate-y-[-50%] border border-border bg-surface text-fg-1 shadow-v7-lg duration-[180ms] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-dialog",
       fullscreen:
         "fixed inset-0 flex flex-col w-screen h-screen translate-x-0 translate-y-0 bg-surface text-fg-1 p-0 sm:rounded-none shadow-none",
     }[variant];
@@ -96,7 +96,7 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-shrink-0 flex-col gap-1 px-6 pb-3 pt-5 text-start",
+      "flex flex-shrink-0 flex-col gap-1.5 px-6 pb-5 pt-6 text-start",
       className,
     )}
     {...props}
@@ -110,7 +110,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-shrink-0 flex-row items-center justify-end gap-2 px-6 pb-5 pt-3",
+      "flex flex-shrink-0 flex-row items-center justify-end gap-2 px-6 pb-6 pt-5",
       className,
     )}
     {...props}

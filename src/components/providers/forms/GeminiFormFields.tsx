@@ -200,9 +200,9 @@ export function GeminiFormFields({
               className="h-7 gap-1"
             >
               {isFetchingModels ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-4 w-4" />
               )}
               {t("providerForm.fetchModels")}
             </Button>

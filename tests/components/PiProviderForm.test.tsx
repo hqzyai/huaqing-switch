@@ -401,7 +401,7 @@ describe("PiProviderForm", () => {
       target: { value: "json-provider" },
     });
     fireEvent.change(screen.getByLabelText("provider.name"), {
-      target: { value: "CC Switch label" },
+      target: { value: "Huaqing Switch label" },
     });
 
     const configEditor = screen.getByLabelText("provider.configJson");
@@ -698,7 +698,7 @@ describe("PiProviderForm", () => {
       baseUrl: "https://api.example.com/v1",
       headers: {
         "HTTP-Referer": "https://cc-switch.example",
-        "X-Title": "CC Switch",
+        "X-Title": "Huaqing Switch",
       },
       models: [completeModel("model-a", "Model A")],
     };
@@ -726,7 +726,7 @@ describe("PiProviderForm", () => {
       screen
         .getAllByLabelText("Value")
         .map((element) => element.getAttribute("value")),
-    ).toEqual(["https://cc-switch.example", "CC Switch"]);
+    ).toEqual(["https://cc-switch.example", "Huaqing Switch"]);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Save existing headers" }),
@@ -2294,7 +2294,7 @@ describe("PiProviderForm", () => {
         submitLabel="Save unnamed provider"
         onSubmit={onSubmit}
         onCancel={() => {}}
-        initialData={{ name: "CC Switch label", settingsConfig: input }}
+        initialData={{ name: "Huaqing Switch label", settingsConfig: input }}
       />,
     );
 
@@ -2320,12 +2320,12 @@ describe("PiProviderForm", () => {
         submitLabel="Save independent name"
         onSubmit={onSubmit}
         onCancel={() => {}}
-        initialData={{ name: "CC Switch label", settingsConfig: input }}
+        initialData={{ name: "Huaqing Switch label", settingsConfig: input }}
       />,
     );
 
     expect(screen.getByLabelText("provider.name")).toHaveValue(
-      "CC Switch label",
+      "Huaqing Switch label",
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Save independent name" }),

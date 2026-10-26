@@ -267,7 +267,7 @@ export const CodexOAuthSection: React.FC<CodexOAuthSectionProps> = ({
                       </span>
                       {account.reauth_required && (
                         <span className="ml-1 inline-flex shrink-0 items-center gap-1 text-xs text-warning-text">
-                          <AlertTriangle className="h-3 w-3" />
+                          <AlertTriangle className="h-4 w-4" />
                           {t("codexOauth.reauthBadge", "需要重新登录")}
                         </span>
                       )}
@@ -342,7 +342,7 @@ export const CodexOAuthSection: React.FC<CodexOAuthSectionProps> = ({
         className="h-7 shrink-0"
         onClick={() => void refetchStatus()}
       >
-        <RefreshCw className="mr-1 h-3.5 w-3.5" />
+        <RefreshCw className="mr-1 h-4 w-4" />
         {t("codexOauth.retry", "重试")}
       </Button>
     </div>
@@ -366,7 +366,7 @@ export const CodexOAuthSection: React.FC<CodexOAuthSectionProps> = ({
         {/* 所选账号需重新登录的内联提示 */}
         {selectedAccountNeedsReauth && (
           <div className="flex items-start gap-2 rounded-md border border-transparent bg-warning-soft px-3 py-2 text-xs text-warning-text">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-text" />
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-text" />
             <div className="flex-1 leading-relaxed">
               {t(
                 "codexOauth.reauthSelectHint",

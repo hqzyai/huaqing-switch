@@ -1145,7 +1145,7 @@ export function ClaudeFormFields({
                     }
                     className="h-7 gap-1"
                   >
-                    <Wand2 className="h-3.5 w-3.5" />
+                    <Wand2 className="h-4 w-4" />
                     {t("providerForm.quickSetModels", {
                       defaultValue: "一键设置",
                     })}
@@ -1159,9 +1159,9 @@ export function ClaudeFormFields({
                     className="h-7 gap-1"
                   >
                     {modelFetchLoading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Download className="h-3.5 w-3.5" />
+                      <Download className="h-4 w-4" />
                     )}
                     {t("providerForm.fetchModels")}
                   </Button>

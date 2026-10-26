@@ -289,7 +289,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
               <div className="absolute right-1 top-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                 {tileAction(
                   t("iconPicker.saveToLibrary"),
-                  <BookmarkPlus className="h-3.5 w-3.5" />,
+                  <BookmarkPlus className="h-4 w-4" />,
                   () =>
                     setNameDialog({
                       mode: "saveCurrent",
@@ -317,7 +317,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
               <div className="absolute right-1 top-1 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                 {tileAction(
                   t("iconPicker.rename"),
-                  <Pencil className="h-3.5 w-3.5" />,
+                  <Pencil className="h-4 w-4" />,
                   () =>
                     setNameDialog({
                       mode: "rename",
@@ -328,7 +328,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                 )}
                 {tileAction(
                   t("iconPicker.delete"),
-                  <Trash2 className="h-3.5 w-3.5" />,
+                  <Trash2 className="h-4 w-4" />,
                   () => setDeleting(icon),
                 )}
               </div>

@@ -7,8 +7,8 @@
 //! **登录暂存。**保留登录开关关闭时，切到第三方要删掉 `auth.json`（兼容期维持 v3.20.1
 //! 的行为），切回官方卡时再还回去。以前靠切走时把 live 回填进官方卡的行，现在不回填：
 //! 回填会让 token 随云同步走，而且行里的快照不会跟着 Codex CLI 轮换，过几天就作废。
-//! 改为把 CC Switch 删掉或覆盖掉的那份原生登录存在这台设备上
-//! （`~/.cc-switch/codex-login-stash.json`，0600，不同步），切回官方卡时原样还回去。
+//! 改为把 Huaqing Switch 删掉或覆盖掉的那份原生登录存在这台设备上
+//! （`~/.hq-model-switch/codex-login-stash.json`，0600，不同步），切回官方卡时原样还回去。
 //! 托管账号的登录在账号管理器里，不进暂存。
 //!
 //! 官方卡的行里存着的 OAuth 登录（旧版回填进去的）只在暂存文件第一次建立时读一次，
@@ -176,7 +176,7 @@ fn is_api_key_credential(auth: &Value) -> bool {
 }
 
 /// 旧版切到第三方时写进 `auth.json` 的 Key（只有 `OPENAI_API_KEY`，而且就是某个第三方
-/// 供应商的 Key）。能证明是 CC Switch 写的才算残留；用户自己 `codex login --api-key`
+/// 供应商的 Key）。能证明是 Huaqing Switch 写的才算残留；用户自己 `codex login --api-key`
 /// 登录的 Key 不算。
 fn is_residue(auth: &Value, third_party_keys: &[String]) -> bool {
     codex_live_auth_is_stale_third_party_residue(auth)
@@ -202,7 +202,7 @@ pub(crate) enum AuthTarget<'a> {
     ThirdParty { preserve: bool },
     /// 代理的第三方路由：不动用户的原生登录（请求凭据由代理注入）。`restore_last`：进入或
     /// 接上代理时 `auth.json` 里没有登录，就把最近暂存的那份还回去。Codex 桌面版续会话要
-    /// ChatGPT 登录，旧版退出 CC Switch 时分离会把它暂存走，接上时又不还（#8431）。
+    /// ChatGPT 登录，旧版退出 Huaqing Switch 时分离会把它暂存走，接上时又不还（#8431）。
     /// access_token 已过期的不还：那是很久没用的旧登录，还回去 Codex 会拿它刷新、失败后
     /// 卡在登录页，比没有登录更糟（#8573）。它留在暂存里，切回官方卡时照常还。
     ProxyThirdParty { restore_last: bool },

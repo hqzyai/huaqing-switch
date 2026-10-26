@@ -131,7 +131,7 @@ fn switch_everything(state: &cc_switch_lib::AppState) -> (String, String) {
     (after_official, inventory())
 }
 
-/// 客户端目录已存在（用户装过这些工具）、文件由 CC Switch 新建时的权限位。
+/// 客户端目录已存在（用户装过这些工具）、文件由 HQ Model Switch 新建时的权限位。
 #[test]
 fn switch_creates_expected_files_and_modes() {
     let _guard = test_mutex().lock().unwrap_or_else(|e| e.into_inner());
@@ -172,7 +172,7 @@ fn switch_keeps_private_modes_of_existing_files() {
     for inventory in [after_official, after_third_party] {
         for line in inventory.lines() {
             if line.ends_with("cc-switch-model-catalog.json 644") {
-                continue; // CC Switch 自己新建的模型目录，不是预置文件
+                continue; // HQ Model Switch 自己新建的模型目录，不是预置文件
             }
             assert!(
                 line.ends_with(" 600"),

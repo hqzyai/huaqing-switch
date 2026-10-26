@@ -292,9 +292,9 @@ export function HermesFormFields({
               className="h-7 gap-1"
             >
               {isFetchingModels ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-4 w-4" />
               )}
               {t("providerForm.fetchModels")}
             </Button>
@@ -305,7 +305,7 @@ export function HermesFormFields({
               onClick={handleAddModel}
               className="h-7 gap-1"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               {t("hermes.form.addModel", { defaultValue: "添加模型" })}
             </Button>
           </div>

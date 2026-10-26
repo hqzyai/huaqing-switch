@@ -616,7 +616,7 @@ mod tests {
             json!({ "env": {} })
         );
 
-        // 用户在 live 里把它改成了 0：不是 CC Switch 写的，保留。
+        // 用户在 live 里把它改成了 0：不是 Huaqing Switch 写的，保留。
         let edited = json!({ "env": { "CLAUDE_CODE_DISABLE_ARTIFACT": "0" } });
         assert_eq!(
             project(&edited, Some(&kimi()), &official),
@@ -777,7 +777,7 @@ mod tests {
         let route = ClaudeProjection::of(&row);
         let stacked = proxy_projection(
             &route,
-            "http://127.0.0.1:15721",
+            "http://127.0.0.1:17621",
             ProxyAuth::FollowRow,
             Some(StackRoleModel {
                 id: "ccs-claude-z--glm-5.2[1M]",
@@ -802,7 +802,7 @@ mod tests {
         assert_eq!(env("ANTHROPIC_AUTH_TOKEN"), Some(PROXY_TOKEN_PLACEHOLDER));
 
         // 路由模式照旧写 `claude-*` 别名和行里的子代理模型。
-        let routed = proxy_projection(&route, "http://127.0.0.1:15721", ProxyAuth::FollowRow, None);
+        let routed = proxy_projection(&route, "http://127.0.0.1:17621", ProxyAuth::FollowRow, None);
         assert_eq!(
             routed.env["ANTHROPIC_DEFAULT_SONNET_MODEL"],
             "claude-sonnet-5[1M]"
@@ -822,7 +822,7 @@ mod tests {
         }});
         let routed = proxy_projection(
             &ClaudeProjection::of(&row),
-            "http://127.0.0.1:15721",
+            "http://127.0.0.1:17621",
             ProxyAuth::FollowRow,
             None,
         );
@@ -914,7 +914,7 @@ mod tests {
             let row = json!({ "env": env });
             let routed = proxy_projection(
                 &ClaudeProjection::of(&row),
-                "http://127.0.0.1:15721",
+                "http://127.0.0.1:17621",
                 ProxyAuth::FollowRow,
                 None,
             );

@@ -1,15 +1,15 @@
-//! Antigravity CLI 的官方账号：在 CC Switch 里加号、切号。
+//! Antigravity CLI 的官方账号：在 Huaqing Switch 里加号、切号。
 //!
-//! agy 只有一份全局登录，存在系统钥匙串里（见 `keychain`）。CC Switch 自己存每个账号的整份
+//! agy 只有一份全局登录，存在系统钥匙串里（见 `keychain`）。Huaqing Switch 自己存每个账号的整份
 //! 登录数据（`agy_accounts.json`，0600，不随云同步），切换就是把目标账号那份写进钥匙串，
 //! agy 下次启动就是这个号。账号按 id_token 的 `sub` 区分（邮箱可能相同前缀，名字可改）。
 //!
 //! 几条规矩：
 //! - 写之前先把钥匙串里现在那份收回来：是已收录的号就更新它（agy 续期后写回的新 access
 //!   token）；不认识的号直接收录，切走也不会丢。认不出格式的整条暂存到 `agy-login-stash.json`。
-//! - 从 CC Switch 删账号只删自己的副本，永远不动钥匙串（不替 agy 登出）。
+//! - 从 Huaqing Switch 删账号只删自己的副本，永远不动钥匙串（不替 agy 登出）。
 //! - 不自动换号：额度用完、请求出错都不切，切换只由用户触发。
-//! - 查额度时令牌快过期就续期，续期结果只存 CC Switch 的副本，不写钥匙串：agy 在用的号由
+//! - 查额度时令牌快过期就续期，续期结果只存 Huaqing Switch 的副本，不写钥匙串：agy 在用的号由
 //!   agy 自己续期（Google 不轮换 refresh token，两边各自的 access token 同时有效）。
 
 pub mod keychain;
@@ -59,7 +59,7 @@ struct StoreFile {
     version: u32,
     #[serde(default)]
     accounts: BTreeMap<String, AccountData>,
-    /// 用户在 CC Switch 里删掉、但 agy 还登着的号：查看状态时不再自动收回来。
+    /// 用户在 Huaqing Switch 里删掉、但 agy 还登着的号：查看状态时不再自动收回来。
     /// 切走它时照样收录（切换绝不弄丢登录），收录后就从这里去掉。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     dismissed: Vec<String>,
@@ -354,7 +354,7 @@ impl AgyAccountManager {
         Ok(())
     }
 
-    /// 只删 CC Switch 里的副本。删的是 agy 正登着的号时记下来，免得查看状态时又被收回来。
+    /// 只删 Huaqing Switch 里的副本。删的是 agy 正登着的号时记下来，免得查看状态时又被收回来。
     pub async fn remove(&self, account_id: &str) -> Result<(), AppError> {
         let mut store = self.store.lock().await;
         if store.accounts.remove(account_id).is_none() {
@@ -401,7 +401,7 @@ impl AgyAccountManager {
     }
 
     /// agy 现在登着的号的额度（跟随 agy 登录的卡片用）。钥匙串里没有认得出的已收录账号时
-    /// 返回 `None`（没登录、读不到、格式不认识、或用户在 CC Switch 里删过这个号），由调用方
+    /// 返回 `None`（没登录、读不到、格式不认识、或用户在 Huaqing Switch 里删过这个号），由调用方
     /// 改问 agy 自己。
     pub async fn live_quota(&self) -> Option<Result<Vec<QuotaTier>, AccountQuotaError>> {
         let account_id = self.live_account_id().await?;
@@ -457,7 +457,7 @@ impl AgyAccountManager {
         self.refresh_account(account_id).await
     }
 
-    /// 续期并存回 CC Switch 的副本（不写钥匙串）。续期时不持锁，存回前确认副本没被换掉。
+    /// 续期并存回 Huaqing Switch 的副本（不写钥匙串）。续期时不持锁，存回前确认副本没被换掉。
     async fn refresh_account(&self, account_id: &str) -> Result<String, AccountQuotaError> {
         let refresh_token = {
             let store = self.store.lock().await;

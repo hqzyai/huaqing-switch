@@ -74,7 +74,7 @@ import { useSkillInstallTargets } from "./useSkillInstallTargets";
 import { describeRepoFailures } from "./repoFailures";
 import type { ZipSkippedSkill } from "@/lib/api/skills";
 
-const BACKUP_DIR = "~/.cc-switch/skill-backups";
+const BACKUP_DIR = "~/.hq-model-switch/skill-backups";
 
 type SkillsView = "installed" | "discover";
 type StatusFilter = "all" | "updates" | "none" | `app:${AppId}`;
@@ -950,7 +950,7 @@ const UnifiedSkillsPanel: React.FC<UnifiedSkillsPanelProps> = ({
               >
                 <Plus className="h-4 w-4" strokeWidth={2} />
                 {t("skillsPage.add")}
-                <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
+                <ChevronDown className="h-4 w-4" strokeWidth={2} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[220px]">
@@ -1999,7 +1999,7 @@ function FilterMenu({
           )}
         >
           <span className="max-w-[180px] truncate">{label}</span>
-          <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
+          <ChevronDown className="h-4 w-4" strokeWidth={2} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -2009,9 +2009,7 @@ function FilterMenu({
         {items.map((item) => (
           <DropdownMenuItem key={item.key} onSelect={item.onSelect}>
             <span className="flex w-4 shrink-0 justify-center">
-              {item.checked && (
-                <Check className="h-3.5 w-3.5" strokeWidth={2} />
-              )}
+              {item.checked && <Check className="h-4 w-4" strokeWidth={2} />}
             </span>
             <span
               className={cn(
@@ -2058,7 +2056,7 @@ function AppMenuButton({
           disabled={disabled}
         >
           {label}
-          <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
+          <ChevronDown className="h-4 w-4" strokeWidth={2} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

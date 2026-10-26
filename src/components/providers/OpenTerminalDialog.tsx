@@ -21,7 +21,7 @@ import { toast } from "@/lib/toast";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "cc-switch:terminal:recent-dirs";
+const STORAGE_KEY = "hq-model-switch:terminal:recent-dirs";
 const MAX_RECENT = 5;
 
 function readRecent(): string[] {
@@ -310,7 +310,7 @@ export function OpenTerminalDialog({
                       onClick={() => handleForget(item)}
                       className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
                     >
-                      <X className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      <X className="h-4 w-4" strokeWidth={1.5} />
                     </Button>
                   </li>
                 ))}
@@ -333,7 +333,7 @@ export function OpenTerminalDialog({
             disabled={!dir || opening}
             onClick={() => void handleOpen()}
           >
-            {opening && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {opening && <Loader2 className="h-4 w-4 animate-spin" />}
             {t("provider.openTerminalDialog.confirm")}
           </Button>
         </DialogFooter>

@@ -56,7 +56,7 @@ export function CodexStaleClientsNotice({
               onClick={() => setConfirming(true)}
             >
               <RotateCw
-                className={`h-3.5 w-3.5 ${restart.isPending ? "animate-spin" : ""}`}
+                className={`h-4 w-4 ${restart.isPending ? "animate-spin" : ""}`}
               />
               {t("proxy.stackMode.codexStale.restart")}
             </Button>

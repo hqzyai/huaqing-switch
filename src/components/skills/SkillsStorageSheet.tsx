@@ -29,7 +29,7 @@ interface SkillsStorageSheetProps {
 
 const appName = (app: string) => APP_DISPLAY_NAME[app as AppId] ?? app;
 
-const DEFAULT_CC_SWITCH_DIR = "~/.cc-switch/skills";
+const DEFAULT_CC_SWITCH_DIR = "~/.hq-model-switch/skills";
 const UNIFIED_DIR = "~/.agents/skills";
 
 /** 和后端 SyncMethod（auto / symlink / copy）一一对应。 */
@@ -325,9 +325,9 @@ export function SkillsStorageSheet({
                   onClick={() => void handleResync()}
                 >
                   {resyncMutation.isPending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />
+                    <RefreshCw className="h-4 w-4" strokeWidth={2} />
                   )}
                   {resyncMutation.isPending
                     ? t("skills.storageSheet.resyncing")

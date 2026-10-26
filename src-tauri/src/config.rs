@@ -13,7 +13,7 @@ use crate::error::AppError;
 /// - `dirs::home_dir()` 在 Windows 上使用 `SHGetKnownFolderPath(FOLDERID_Profile)`，
 ///   返回的是真实用户目录（类似 `C:\\Users\\Alice`），与 v3.10.2 行为一致。
 /// - 不要直接使用 `HOME` 环境变量：它可能由 Git/Cygwin/MSYS 等第三方工具注入，
-///   且不一定等于用户目录，可能导致 `.cc-switch/cc-switch.db` 路径变化，从而“看起来像数据丢失”。
+///   且不一定等于用户目录，可能导致 `.hq-model-switch/hq-model-switch.db` 路径变化，从而“看起来像数据丢失”。
 ///
 /// ## 测试隔离
 ///
@@ -309,21 +309,21 @@ pub fn get_claude_settings_path() -> PathBuf {
     settings
 }
 
-/// 获取应用配置目录路径 (~/.cc-switch)
+/// 获取应用配置目录路径 (~/.hq-model-switch)
 pub fn get_app_config_dir() -> PathBuf {
     if let Some(custom) = crate::app_store::get_app_config_dir_override() {
         return custom;
     }
 
-    let default_dir = get_home_dir().join(".cc-switch");
+    let default_dir = get_home_dir().join(".hq-model-switch");
 
     // 兼容 v3.10.3：当用户环境存在 `HOME` 且与真实用户目录不同，
-    // v3.10.3 可能在 `HOME/.cc-switch/` 下创建/使用了数据库。
+    // v3.10.3 可能在 `HOME/.hq-model-switch/` 下创建/使用了数据库。
     // 这里仅在“默认位置没有数据库”时回退到旧位置，避免再次出现“供应商消失”问题，
     // 同时也避免新安装因为 `HOME` 被设置而写入非预期路径。
     //
     // `CC_SWITCH_TEST_HOME` 是测试用的显式 home 覆盖，必须在这里短路：测试的临时
-    // 目录本来就不带 cc-switch.db，若不先返回，下面的 HOME 回退会把测试指向真实
+    // 目录本来就不带 hq-model-switch.db，若不先返回，下面的 HOME 回退会把测试指向真实
     // 用户库（Windows 上 runner 的 HOME 下常常确实有该 db），既污染用户数据，又让
     // 隔离测试读到别人写的状态而失败。
     #[cfg(windows)]
@@ -333,13 +333,13 @@ pub fn get_app_config_dir() -> PathBuf {
 
     #[cfg(windows)]
     {
-        let default_db = default_dir.join("cc-switch.db");
+        let default_db = default_dir.join("hq-model-switch.db");
         if !default_db.exists() {
             if let Ok(home_env) = std::env::var("HOME") {
                 let trimmed = home_env.trim();
                 if !trimmed.is_empty() {
-                    let legacy_dir = PathBuf::from(trimmed).join(".cc-switch");
-                    if legacy_dir.join("cc-switch.db").exists() {
+                    let legacy_dir = PathBuf::from(trimmed).join(".hq-model-switch");
+                    if legacy_dir.join("hq-model-switch.db").exists() {
                         log::info!(
                             "Detected v3.10.3 legacy database at {}, using it instead of {}",
                             legacy_dir.display(),
@@ -1009,8 +1009,8 @@ mod tests {
 
     /// 回归：`CC_SWITCH_TEST_HOME` 必须盖过 v3.10.3 的 `HOME` 兼容回退。
     ///
-    /// Windows 上回退只看"默认位置有没有 cc-switch.db"，而测试临时目录里通常没有，
-    /// 于是会被引向 `HOME/.cc-switch`——runner 的 HOME 下往往真有一份 db，测试就此
+    /// Windows 上回退只看"默认位置有没有 hq-model-switch.db"，而测试临时目录里通常没有，
+    /// 于是会被引向 `HOME/.hq-model-switch`——runner 的 HOME 下往往真有一份 db，测试就此
     /// 读写到真实用户数据（既污染用户库，又让断言读到别人写下的状态）。
     #[cfg(windows)]
     #[test]
@@ -1023,9 +1023,9 @@ mod tests {
 
         // 假装 HOME 指向另一处，并且那里有一份 db——正是会触发回退的形状
         let legacy_home = tempfile::tempdir().expect("tempdir");
-        let legacy_dir = legacy_home.path().join(".cc-switch");
+        let legacy_dir = legacy_home.path().join(".hq-model-switch");
         std::fs::create_dir_all(&legacy_dir).expect("create legacy dir");
-        std::fs::write(legacy_dir.join("cc-switch.db"), b"legacy").expect("seed legacy db");
+        std::fs::write(legacy_dir.join("hq-model-switch.db"), b"legacy").expect("seed legacy db");
 
         let test_home = tempfile::tempdir().expect("tempdir");
         let saved_home = std::env::var_os("HOME");
@@ -1045,7 +1045,7 @@ mod tests {
             None => std::env::remove_var("HOME"),
         }
 
-        let expected = test_home.path().join(".cc-switch");
+        let expected = test_home.path().join(".hq-model-switch");
         assert_eq!(
             dir, expected,
             "测试 home 优先：不得回退到 HOME 下的旧库目录"

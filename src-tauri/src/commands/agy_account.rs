@@ -26,7 +26,7 @@ pub async fn agy_account_quota(
     agy_quota(&state.0, Some(&account_id)).await
 }
 
-/// Antigravity 官方登录的额度。指定账号就查它；不指定就查 agy 现在登着的号。都用 CC Switch
+/// Antigravity 官方登录的额度。指定账号就查它；不指定就查 agy 现在登着的号。都用 Huaqing Switch
 /// 存的令牌直接问 Google（约 1 秒），认不出 agy 的登录、或这个平台不能切号时，改问 agy 的
 /// `/usage`（要先启动 agy，七八秒）。不能切号的平台忽略绑定，和打开终端一致。
 pub(crate) async fn agy_quota(

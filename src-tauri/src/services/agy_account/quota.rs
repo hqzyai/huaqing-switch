@@ -1,13 +1,13 @@
 //! 直接向 Google 查某个 Antigravity 账号的剩余额度（授权中心逐个账号显示）。
 //!
-//! 和 agy 的 `/usage` 是同一个接口、同一组额度桶，区别是用 CC Switch 存的那份令牌查，
+//! 和 agy 的 `/usage` 是同一个接口、同一组额度桶，区别是用 Huaqing Switch 存的那份令牌查，
 //! 不用先把 agy 切到这个号。这个接口只回应自报是 Antigravity 的客户端（User-Agent
 //! 里不带 `antigravity` 一律 403「没有有效许可」），所以 UA 写成
-//! `cc-switch/<版本> (antigravity)`：照实报 CC Switch，只补上服务端要的那个词。
+//! `cc-switch/<版本> (antigravity)`：照实报 Huaqing Switch，只补上服务端要的那个词。
 //! 只查额度，不调模型、不做预热，也不据额度自动换号。
 //!
 //! 没有使用资格的号（如 Google 判定未满 18 岁）同样回 403「没有有效许可」，这时再问一次
-//! `loadCodeAssist`，把 Google 给的不合格原因原样显示，免得看着像 CC Switch 的问题。
+//! `loadCodeAssist`，把 Google 给的不合格原因原样显示，免得看着像 Huaqing Switch 的问题。
 
 use std::time::Duration;
 

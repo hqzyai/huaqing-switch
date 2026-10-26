@@ -1300,7 +1300,7 @@ export function PiProviderForm({
             : "";
         // Existing explicit nodes may be partial overrides of a Pi built-in
         // provider. Pi inherits the built-in transport in that case, so only
-        // require a complete transport when CC Switch creates a new provider.
+        // require a complete transport when Huaqing Switch creates a new provider.
         if (!isEdit && !modelApi && !api.trim()) {
           throw new PiFormValidationError(
             t("pi.form.effectiveApiRequired", { id }),
@@ -1595,9 +1595,9 @@ export function PiProviderForm({
                     className="h-7 gap-1"
                   >
                     {isFetchingModels ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Download className="h-3.5 w-3.5" />
+                      <Download className="h-4 w-4" />
                     )}
                     {t("providerForm.fetchModels")}
                   </Button>
@@ -1609,7 +1609,7 @@ export function PiProviderForm({
                     onClick={addModel}
                     className="h-7 gap-1"
                   >
-                    <Plus className="h-3.5 w-3.5" />
+                    <Plus className="h-4 w-4" />
                     {t("pi.form.addModel")}
                   </Button>
                 </div>
@@ -1957,7 +1957,7 @@ export function PiProviderForm({
                                                         : "text-fg-3 group-hover:translate-x-0.5 group-hover:text-fg-2"
                                                     }`}
                                                   >
-                                                    <ChevronRight className="h-3.5 w-3.5" />
+                                                    <ChevronRight className="h-4 w-4" />
                                                   </span>
                                                 </PopoverAnchor>
                                               </button>

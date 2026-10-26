@@ -49,7 +49,7 @@ export function RouteSettingsSheet({
             }}
           >
             {t("mode.moreRouteSettings")}
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="h-4 w-4" />
           </Button>
         </SheetFooter>
       </SheetContent>

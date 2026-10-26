@@ -124,7 +124,7 @@ export function AppConfigSection({
         disabled={isSaving}
         onClick={() => void onSaveDirectories()}
       >
-        {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
         {t("common.save")}
       </Button>
     ) : null;

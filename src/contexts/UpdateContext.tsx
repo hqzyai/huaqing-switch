@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import React, {
   createContext,
   useContext,
@@ -29,7 +30,7 @@ interface UpdateContextValue {
 const UpdateContext = createContext<UpdateContextValue | undefined>(undefined);
 
 export function UpdateProvider({ children }: { children: React.ReactNode }) {
-  const DISMISSED_VERSION_KEY = "ccswitch:update:dismissedVersion";
+  const DISMISSED_VERSION_KEY = "hq-model-switch:update:dismissedVersion";
   const LEGACY_DISMISSED_KEY = "dismissedUpdateVersion"; // 兼容旧键
 
   const [hasUpdate, setHasUpdate] = useState(false);
@@ -118,6 +119,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
 
   // 应用启动时自动检查更新
   useEffect(() => {
+    if (!BRAND.updatesEnabled) return;
     // 延迟1秒后检查，避免影响启动体验
     const timer = setTimeout(() => {
       checkUpdate().catch(console.error);

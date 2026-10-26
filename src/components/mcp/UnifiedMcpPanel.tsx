@@ -748,7 +748,7 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
                   disabled={controlsDisabled}
                   onClick={() => void handleImport()}
                 >
-                  <Download className="h-3.5 w-3.5" strokeWidth={2} />
+                  <Download className="h-4 w-4" strokeWidth={2} />
                   {t("mcpPage.importFromApps")}
                 </Button>
                 <Button
@@ -758,7 +758,7 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
                   disabled={controlsDisabled}
                   onClick={openAdd}
                 >
-                  <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+                  <Plus className="h-4 w-4" strokeWidth={2} />
                   {t("mcpPage.add")}
                 </Button>
               </div>

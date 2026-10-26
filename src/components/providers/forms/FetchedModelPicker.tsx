@@ -95,11 +95,11 @@ export function FetchedModelPicker({
         className="h-7 gap-1"
       >
         {isFetching ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : hasModels ? (
-          <ListChecks className="h-3.5 w-3.5" />
+          <ListChecks className="h-4 w-4" />
         ) : (
-          <Download className="h-3.5 w-3.5" />
+          <Download className="h-4 w-4" />
         )}
         {hasModels
           ? t("providerForm.modelPicker.title")
@@ -276,7 +276,7 @@ function FetchedModelPickerBody({
             onClick={onFetch}
           >
             <RefreshCw
-              className={cn("h-3.5 w-3.5", isFetching && "animate-spin")}
+              className={cn("h-4 w-4", isFetching && "animate-spin")}
             />
           </Button>
         </HoverTip>

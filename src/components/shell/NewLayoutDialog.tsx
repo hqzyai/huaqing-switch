@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -18,7 +19,7 @@ import { useSettingsQuery } from "@/lib/query";
 import { markSeen } from "@/lib/whatsNew";
 import type { Settings } from "@/types";
 
-const RELEASES_URL = "https://github.com/farion1231/cc-switch/releases";
+const RELEASES_URL = BRAND.releaseRepository;
 
 /** 任一应用的数据库里已经有供应商（找到一家就停） */
 async function hasAnyProvider(): Promise<boolean> {
@@ -94,6 +95,7 @@ export function NewLayoutDialog() {
   };
 
   const handleViewReleaseNotes = async () => {
+    if (!RELEASES_URL) return;
     try {
       const version = await getVersion();
       await settingsApi.openExternal(
@@ -125,7 +127,11 @@ export function NewLayoutDialog() {
           </DialogDescription>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={handleViewReleaseNotes}>
+          <Button
+            variant="outline"
+            disabled={!RELEASES_URL}
+            onClick={handleViewReleaseNotes}
+          >
             {t("newLayoutNotice.viewReleaseNotes")}
           </Button>
           <Button onClick={handleAcknowledge}>

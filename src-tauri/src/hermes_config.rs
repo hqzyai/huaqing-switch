@@ -475,7 +475,7 @@ fn write_yaml_section_to_config_locked(
 /// Convert a provider's `models` field from a UI-friendly array to the YAML
 /// dict shape that Hermes expects.
 ///
-/// Input (from CC Switch UI / database):
+/// Input (from Huaqing Switch UI / database):
 /// ```json
 /// "models": [{ "id": "foo", "context_length": 200000 }, { "id": "bar" }]
 /// ```
@@ -599,7 +599,7 @@ fn denormalize_provider_models_for_read(config: &mut serde_json::Value) {
 }
 
 /// Marker field injected on provider payloads sourced from Hermes v12+
-/// `providers:` dict. CC Switch treats those as read-only — writes have to
+/// `providers:` dict. Huaqing Switch treats those as read-only — writes have to
 /// go through Hermes' own Web UI to keep its overlay semantics intact.
 pub const PROVIDER_SOURCE_FIELD: &str = "_cc_source";
 pub const PROVIDER_SOURCE_CUSTOM_LIST: &str = "custom_providers";
@@ -675,12 +675,12 @@ fn read_providers_dict_entries(config: &serde_yaml::Value) -> Vec<(String, serde
 /// Get all providers as a JSON map keyed by provider name.
 ///
 /// Unions two on-disk sources, matching upstream `get_compatible_custom_providers`:
-/// - `custom_providers:` list entries (writable by CC Switch)
+/// - `custom_providers:` list entries (writable by Huaqing Switch)
 /// - `providers:` dict entries (v12+ schema, surfaced read-only with
 ///   `_cc_source = "providers_dict"` so the UI can disable edit/delete)
 ///
 /// When a name appears in both, the list entry wins (upstream dedup order),
-/// keeping CC Switch free to edit it. Models are denormalized from the YAML
+/// keeping Huaqing Switch free to edit it. Models are denormalized from the YAML
 /// dict shape to the UI-friendly ordered array.
 pub fn get_providers() -> Result<serde_json::Map<String, serde_json::Value>, AppError> {
     let config = read_hermes_config()?;
@@ -741,7 +741,7 @@ fn ensure_provider_writable(
 }
 
 /// True when `name` appears in `providers:` dict but not in `custom_providers:`
-/// list — i.e. it is a read-only overlay CC Switch must not touch.
+/// list — i.e. it is a read-only overlay Huaqing Switch must not touch.
 fn is_dict_only_provider(config: &serde_yaml::Value, name: &str) -> bool {
     let list_has = config
         .get("custom_providers")
@@ -842,7 +842,7 @@ pub fn set_provider(
         // Forward-compat: carry over any on-disk fields the UI payload didn't
         // include. Hermes keeps evolving (e.g. `request_timeout_seconds`,
         // `key_env`), and users may set those via Hermes Web UI — without
-        // this merge, a CC Switch edit to an unrelated field would silently
+        // this merge, a Huaqing Switch edit to an unrelated field would silently
         // strip them on write-back.
         if let (Some(existing_map), serde_yaml::Value::Mapping(new_map)) =
             (existing.as_mapping(), &mut yaml_val)
@@ -987,7 +987,7 @@ fn declared_title_generation_model(provider: &serde_json::Value) -> Option<&str>
 /// that Hermes' title request sends, so titles use a model that accepts it), or
 /// release the pin when `wanted` is `None`.
 ///
-/// Only a pin CC Switch could have written is touched: the current value must be
+/// Only a pin Huaqing Switch could have written is touched: the current value must be
 /// empty or equal to a value some provider card declares (or `released`, the
 /// value of a card being deleted). A title model the user picked, or a title
 /// route pointed at its own provider / endpoint, is left alone.
@@ -1114,7 +1114,7 @@ pub(crate) fn json_to_yaml(json: &serde_json::Value) -> Result<serde_yaml::Value
 //   - `USER.md`   — user profile, same treatment
 // Entries are separated by a `§` on its own line. Hermes' own Web UI only
 // exposes on/off toggles and character budgets — it has no content editor.
-// CC Switch fills that gap by reading/writing the whole file as a markdown
+// Huaqing Switch fills that gap by reading/writing the whole file as a markdown
 // blob. Character budgets (`memory_char_limit`, `user_char_limit`) and enable
 // flags (`memory_enabled`, `user_profile_enabled`) live at the top level of
 // `config.yaml`; Hermes truncates over-budget content at load time.
@@ -1732,7 +1732,7 @@ model:
     fn set_provider_preserves_unknown_fields_on_update() {
         // Hermes keeps adding provider-level fields (e.g.
         // `request_timeout_seconds`, `key_env`). Users may set those via
-        // Hermes Web UI; a later CC Switch edit must not strip them — set_provider
+        // Hermes Web UI; a later Huaqing Switch edit must not strip them — set_provider
         // carries over any existing on-disk fields that the UI payload didn't
         // submit.
         with_test_home(|| {
@@ -2373,7 +2373,7 @@ custom_providers:
     fn set_memory_enabled_preserves_other_fields() {
         // Flipping one toggle must preserve character budgets and external
         // provider settings the user configured via Hermes Web UI — otherwise
-        // a CC Switch toggle would silently wipe those fields.
+        // a Huaqing Switch toggle would silently wipe those fields.
         with_test_home(|| {
             let yaml = "\
 memory:

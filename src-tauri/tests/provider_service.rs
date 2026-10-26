@@ -1302,7 +1302,7 @@ wire_api = "responses"
 requires_openai_auth = true
 "#;
     // The residue is the row's own key: only a key some third-party row
-    // carries is provably CC Switch's to delete (a user's own
+    // carries is provably HQ Model Switch's to delete (a user's own
     // `codex login --api-key` login is left alone).
     let live_auth = json!({ "OPENAI_API_KEY": "old-db-key" });
     write_codex_live_atomic(&live_auth, Some(third_party_config))
@@ -2007,7 +2007,7 @@ model = "deepseek-chat"
 
 [model_providers.deepseek]
 name = "DeepSeek"
-base_url = "http://127.0.0.1:15721/v1"
+base_url = "http://127.0.0.1:17621/v1"
 wire_api = "responses"
 experimental_bearer_token = "PROXY_MANAGED"
 "#;
@@ -2203,7 +2203,7 @@ fn switch_packycode_gemini_updates_security_selected_type() {
     ProviderService::switch(&state, AppType::Gemini, "packy-gemini")
         .expect("switching to PackyCode Gemini should succeed");
 
-    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.cc-switch/settings.json
+    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.hq-model-switch/settings.json
     let settings_path = home.join(".gemini").join("settings.json");
     assert!(
         settings_path.exists(),
@@ -2258,7 +2258,7 @@ fn packycode_partner_meta_triggers_security_flag_even_without_keywords() {
     ProviderService::switch(&state, AppType::Gemini, "packy-meta")
         .expect("switching to partner meta provider should succeed");
 
-    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.cc-switch/settings.json
+    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.hq-model-switch/settings.json
     let settings_path = home.join(".gemini").join("settings.json");
     assert!(
         settings_path.exists(),
@@ -2593,7 +2593,7 @@ fn switch_claude_moves_compat_switches_with_their_provider() {
     ProviderService::switch(&state, AppType::Claude, "deepseek").expect("back to deepseek");
     assert_eq!(claude_live(), deepseek);
 
-    // 用户在 live 里手动改成了 0：不是 CC Switch 写的，切走时保留。
+    // 用户在 live 里手动改成了 0：不是 HQ Model Switch 写的，切走时保留。
     let mut edited = claude_live();
     edited["env"]["CLAUDE_CODE_DISABLE_ARTIFACT"] = json!("0");
     std::fs::write(get_claude_settings_path(), edited.to_string()).expect("edit live");
@@ -2942,7 +2942,7 @@ fn recover_from_crash_without_backup_cleans_placeholder_instead_of_writing_it_ba
     // 接管态 Claude Live，且 DB 中无备份（模拟切换 app_config_dir 后新库首启的场景）
     let taken_over_live = json!({
         "env": {
-            "ANTHROPIC_BASE_URL": "http://127.0.0.1:15721",
+            "ANTHROPIC_BASE_URL": "http://127.0.0.1:17621",
             "ANTHROPIC_AUTH_TOKEN": "PROXY_MANAGED"
         }
     });
@@ -3581,7 +3581,8 @@ fn claude_editor_never_leaves_the_row_and_live_apart() {
     let (row, base) = open_claude_editor(&state, "a");
     let mut edited = base.clone();
     edited["env"]["ANTHROPIC_AUTH_TOKEN"] = json!("sk-new");
-    let db = rusqlite::Connection::open(home.join(".cc-switch/cc-switch.db")).expect("open db");
+    let db = rusqlite::Connection::open(home.join(".hq-model-switch/hq-model-switch.db"))
+        .expect("open db");
     db.execute_batch(
         "CREATE TRIGGER fail_edit BEFORE UPDATE OF settings_config ON providers \
          BEGIN SELECT RAISE(ABORT, 'injected save failure'); END;",

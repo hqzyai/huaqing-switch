@@ -7,7 +7,7 @@ describe("Switch", () => {
     render(<Switch aria-label="default" defaultChecked />);
     const element = screen.getByRole("switch", { name: "default" });
     expect(element).toHaveAttribute("data-size", "default");
-    expect(element.className).toContain("w-[30px]");
+    expect(element.className).toContain("w-8");
     expect(element.className).toContain("data-[state=checked]:bg-action");
   });
 

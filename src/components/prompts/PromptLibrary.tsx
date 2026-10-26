@@ -191,7 +191,7 @@ export function PromptEmptyState({
             disabled={disabled}
             onClick={onImport}
           >
-            <Download className="h-3.5 w-3.5" />
+            <Download className="h-4 w-4" />
             {t("prompts.importExisting")}
           </Button>
         ) : null}
@@ -201,7 +201,7 @@ export function PromptEmptyState({
           disabled={disabled}
           onClick={onAdd}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4" />
           {t("prompts.add")}
         </Button>
       </div>

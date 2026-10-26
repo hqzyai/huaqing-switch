@@ -71,24 +71,15 @@ describe("NewLayoutDialog", () => {
     );
   });
 
-  it("opens this version's release notes and closes", async () => {
+  it("keeps upstream release downloads unavailable when this product has no release service", async () => {
     renderDialog();
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "newLayoutNotice.viewReleaseNotes",
-      }),
-    );
-    await waitFor(() =>
-      expect(mocks.openExternal).toHaveBeenCalledWith(
-        "https://github.com/farion1231/cc-switch/releases/tag/v4.0.0",
-      ),
-    );
-    await waitFor(() =>
-      expect(mocks.save).toHaveBeenCalledWith(
-        expect.objectContaining({ newLayoutNoticeConfirmed: true }),
-      ),
-    );
-    expect(screen.queryByText("newLayoutNotice.title")).not.toBeInTheDocument();
+    const button = await screen.findByRole("button", {
+      name: "newLayoutNotice.viewReleaseNotes",
+    });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(mocks.openExternal).not.toHaveBeenCalled();
+    expect(screen.getByText("newLayoutNotice.title")).toBeInTheDocument();
   });
 
   it("stays closed once confirmed", async () => {

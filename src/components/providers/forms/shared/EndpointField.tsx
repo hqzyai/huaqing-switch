@@ -59,7 +59,7 @@ export function EndpointField({
             onClick={onManageClick}
             className="flex items-center gap-1 text-caption text-fg-2 transition-colors hover:text-fg-1"
           >
-            <Zap className="h-3.5 w-3.5" />
+            <Zap className="h-4 w-4" />
             {manageButtonLabel || defaultManageLabel}
           </button>
         ) : null}

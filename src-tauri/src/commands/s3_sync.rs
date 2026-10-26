@@ -343,7 +343,7 @@ mod tests {
             bucket: "my-bucket".to_string(),
             access_key_id: "AKID".to_string(),
             secret_access_key: "SECRET".to_string(),
-            remote_root: "cc-switch-sync".to_string(),
+            remote_root: "hq-model-switch-sync".to_string(),
             profile: "default".to_string(),
             ..S3SyncSettings::default()
         };
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(after.bucket, "my-bucket");
         assert_eq!(after.access_key_id, "AKID");
         assert_eq!(after.secret_access_key, "SECRET");
-        assert_eq!(after.remote_root, "cc-switch-sync");
+        assert_eq!(after.remote_root, "hq-model-switch-sync");
         assert_eq!(after.profile, "default");
         assert!(
             after

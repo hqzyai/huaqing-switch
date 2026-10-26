@@ -19,7 +19,7 @@ fn deeplink_import_opencode_generates_editable_ids_and_preserves_display_names()
     for name in ["中文供应商", "公司 AI", "Test_Provider", "---", "🚀"] {
         // Repeated imports must still create distinct records, even in the same millisecond.
         for _ in 0..2 {
-            let mut url = url::Url::parse("ccswitch://v1/import").unwrap();
+            let mut url = url::Url::parse("hqmodelswitch://v1/import").unwrap();
             url.query_pairs_mut().extend_pairs([
                 ("resource", "provider"),
                 ("app", "opencode"),
@@ -51,7 +51,7 @@ fn deeplink_import_claude_provider_persists_to_db() {
     reset_test_fs();
     let _home = ensure_test_home();
 
-    let url = "ccswitch://v1/import?resource=provider&app=claude&name=DeepLink%20Claude&homepage=https%3A%2F%2Fexample.com&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&apiKey=sk-test-claude-key&model=claude-sonnet-4&icon=claude";
+    let url = "hqmodelswitch://v1/import?resource=provider&app=claude&name=DeepLink%20Claude&homepage=https%3A%2F%2Fexample.com&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&apiKey=sk-test-claude-key&model=claude-sonnet-4&icon=claude";
     let request = parse_deeplink_url(url).expect("parse deeplink url");
 
     let db = Arc::new(Database::memory().expect("create memory db"));
@@ -87,7 +87,7 @@ fn deeplink_import_codex_provider_builds_auth_and_config() {
     reset_test_fs();
     let _home = ensure_test_home();
 
-    let url = "ccswitch://v1/import?resource=provider&app=codex&name=DeepLink%20Codex&homepage=https%3A%2F%2Fopenai.example&endpoint=https%3A%2F%2Fapi.openai.example%2Fv1&apiKey=sk-test-codex-key&model=gpt-4o&icon=openai";
+    let url = "hqmodelswitch://v1/import?resource=provider&app=codex&name=DeepLink%20Codex&homepage=https%3A%2F%2Fopenai.example&endpoint=https%3A%2F%2Fapi.openai.example%2Fv1&apiKey=sk-test-codex-key&model=gpt-4o&icon=openai";
     let request = parse_deeplink_url(url).expect("parse deeplink url");
 
     let db = Arc::new(Database::memory().expect("create memory db"));
@@ -129,7 +129,7 @@ fn agy_deeplink_disabled_provider_does_not_write_native_files() {
     let _guard = test_mutex().lock().unwrap_or_else(|e| e.into_inner());
     reset_test_fs();
     let home = ensure_test_home();
-    let request = parse_deeplink_url("ccswitch://v1/import?resource=provider&app=agy&name=Agy&endpoint=https://relay.example&apiKey=fixture&model=test-model&enabled=false").unwrap();
+    let request = parse_deeplink_url("hqmodelswitch://v1/import?resource=provider&app=agy&name=Agy&endpoint=https://relay.example&apiKey=fixture&model=test-model&enabled=false").unwrap();
     let db = Arc::new(Database::memory().unwrap());
     let state = AppState::new(db.clone());
     let id = import_provider_from_deeplink(&state, request).unwrap();

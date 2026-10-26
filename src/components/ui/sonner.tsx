@@ -20,7 +20,7 @@ export function Toaster() {
         unstyled: true,
         classNames: {
           toast:
-            "group flex w-full items-center gap-2.5 rounded-panel border border-border bg-surface py-2.5 pe-3.5 ps-3 text-body text-fg-1 shadow-v7-lg",
+            "group flex w-full items-center gap-2 rounded-[8px] border border-border bg-surface py-2.5 pe-3.5 ps-3 text-body text-fg-1 shadow-v7-md",
           content: "flex min-w-0 flex-1 flex-col gap-0.5",
           title: "text-body font-medium",
           description: "text-caption text-fg-2",

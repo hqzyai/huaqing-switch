@@ -183,7 +183,7 @@ const MemoryTabPane: React.FC<MemoryTabPaneProps> = ({
           </code>
         ) : (
           <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption text-warning-text">
-            <AlertTriangle className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <AlertTriangle className="h-4 w-4" strokeWidth={1.5} />
             {t("hermes.memory.disabledHint")}
           </span>
         )}
@@ -320,7 +320,7 @@ const HermesMemoryPanel: React.FC<HermesMemoryPanelProps> = ({
             onClick={() => void openWebUI("/config")}
           >
             {t("hermes.memory.openConfig")}
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="h-4 w-4" />
           </Button>
         }
       />

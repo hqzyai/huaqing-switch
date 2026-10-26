@@ -110,7 +110,7 @@ export function WhatsNewDialog({
                   }
                 >
                   {t("whatsNew.versionDetails")}
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="h-4 w-4" />
                 </button>
               </div>
               <ul className="mt-2 space-y-1.5">
@@ -134,7 +134,7 @@ export function WhatsNewDialog({
               className="inline-flex items-center gap-1 text-caption text-fg-2 hover:text-fg-1"
               onClick={() => setShowAll(true)}
             >
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="h-4 w-4" />
               {t("whatsNew.showEarlier", { count: hiddenCount })}
             </button>
           )}

@@ -1,5 +1,5 @@
 //! Antigravity CLI 的卡片只用来打开终端，没有「启用」：官方卡按会话传 `--model`，第三方
-//! Key 不进任何文件，只在 CC Switch 打开的终端里经环境变量传给 agy（见 `agy_config` 模块说明）。
+//! Key 不进任何文件，只在 Huaqing Switch 打开的终端里经环境变量传给 agy（见 `agy_config` 模块说明）。
 
 use serde_json::{json, Value};
 

@@ -261,9 +261,11 @@ describe("SessionMarkdown", () => {
 
   it("renders table rows using only semantic cell elements", () => {
     const { container } = renderMarkdown(
-      ["| Name | Status |", "| --- | --- |", "| CC Switch | Ready |"].join(
-        "\n",
-      ),
+      [
+        "| Name | Status |",
+        "| --- | --- |",
+        "| Huaqing Switch | Ready |",
+      ].join("\n"),
     );
     const rows = Array.from(container.querySelectorAll("tr"));
 

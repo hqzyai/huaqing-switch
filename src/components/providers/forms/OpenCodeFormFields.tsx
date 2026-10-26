@@ -682,7 +682,7 @@ export function OpenCodeFormFields({
             onClick={handleAddExtraOption}
             className="h-7 gap-1"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" />
             {t("opencode.addExtraOption", { defaultValue: "Add" })}
           </Button>
         </div>
@@ -767,7 +767,7 @@ export function OpenCodeFormFields({
               onClick={handleAddModel}
               className="h-7 gap-1"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               {t("opencode.addModel", { defaultValue: "Add manually" })}
             </Button>
           </div>
@@ -935,7 +935,7 @@ export function OpenCodeFormFields({
                           onClick={() => handleAddModelExtraField(key)}
                           className="h-6 px-2 gap-1"
                         >
-                          <Plus className="h-3 w-3" />
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
                       {Object.keys(getModelExtraFields(model)).length === 0 ? (
@@ -1017,7 +1017,7 @@ export function OpenCodeFormFields({
                           onClick={() => handleAddModelOption(key)}
                           className="h-6 px-2 gap-1"
                         >
-                          <Plus className="h-3 w-3" />
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
                       {Object.keys(model.options || {}).length === 0 ? (

@@ -475,7 +475,7 @@ mod tests {
         body: Value,
     }
 
-    /// Windows 上监听 socket 不能被子进程继承：从 CC Switch 拉起的终端、CLI 一旦继承它，
+    /// Windows 上监听 socket 不能被子进程继承：从 Huaqing Switch 拉起的终端、CLI 一旦继承它，
     /// 退出后端口仍被占着，下次启动报 os error 10048（#8552）。mio 1.2.1 起才带
     /// WSA_FLAG_NO_HANDLE_INHERIT，这里防止 Cargo.lock 退回旧版本。
     #[cfg(windows)]

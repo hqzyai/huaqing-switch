@@ -1,6 +1,6 @@
-//! Deep link import functionality for CC Switch
+//! Deep link import functionality for Huaqing Switch
 //!
-//! This module implements the ccswitch:// protocol for importing configurations
+//! This module implements the hqmodelswitch:// protocol for importing configurations
 //! via deep links. Supports importing:
 //! - Provider configurations (Claude/Codex/Gemini)
 //! - MCP server configurations
@@ -85,7 +85,7 @@ pub fn ack_pending_deeplink(id: u64) {
 
 /// Deep link import request model
 ///
-/// Represents a parsed ccswitch:// URL ready for processing.
+/// Represents a parsed hqmodelswitch:// URL ready for processing.
 /// This struct contains all possible fields for all resource types.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

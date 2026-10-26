@@ -448,7 +448,7 @@ pub async fn auth_remove_account(
                 .await
                 .map_err(|e| e.to_string())
         }
-        // 只删 CC Switch 里的副本，不替 agy 登出
+        // 只删 Huaqing Switch 里的副本，不替 agy 登出
         AUTH_PROVIDER_AGY_OAUTH => agy_state
             .0
             .remove(&account_id)

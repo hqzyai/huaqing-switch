@@ -259,7 +259,7 @@ function PromptAppPicker({
           </span>
           <ChevronDown
             aria-hidden="true"
-            className="h-3.5 w-3.5 shrink-0 text-fg-2"
+            className="h-4 w-4 shrink-0 text-fg-2"
           />
         </Button>
       </PopoverTrigger>
@@ -306,7 +306,7 @@ function PromptAppPicker({
                 aria-hidden="true"
                 strokeWidth={1.5}
                 className={cn(
-                  "h-3.5 w-3.5 shrink-0",
+                  "h-4 w-4 shrink-0",
                   selected ? "visible" : "invisible",
                 )}
               />

@@ -65,7 +65,7 @@ async fn agy_live_provider_skill_session_and_tokens() {
         .expect("smoke fixture must be an API-key provider")
         .join("antigravity-cli/settings.json");
     let key = settings["env"]["GEMINI_API_KEY"].as_str().unwrap();
-    // The key stays out of every file CC Switch writes.
+    // The key stays out of every file Huaqing Switch writes.
     assert!(!String::from_utf8_lossy(&fs::read(&private_settings).unwrap()).contains(key));
     assert!(
         !String::from_utf8_lossy(&fs::read(agy_config::settings_path()).unwrap_or_default())

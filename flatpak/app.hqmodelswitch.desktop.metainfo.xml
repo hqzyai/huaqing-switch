@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.hqmodelswitch.desktop</id>
+  <name>Huaqing Switch</name>
+  <summary>Local model API connection manager</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>Huaqing Switch is a cross-platform desktop app for managing and switching provider configurations for Claude Code, Codex, and Gemini CLI.</p>
+    <ul>
+      <li>Manage multiple provider configurations and endpoints</li>
+      <li>One-click switch and sync to client live configurations</li>
+      <li>MCP servers and Prompt/Skills management</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">app.hqmodelswitch.desktop.desktop</launchable>
+  <provides>
+    <binary>hq-model-switch</binary>
+  </provides>
+
+</component>

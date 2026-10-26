@@ -517,12 +517,12 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
             >
               {isTesting ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   {t("endpointTest.testing")}
                 </>
               ) : (
                 <>
-                  <Zap className="h-3.5 w-3.5" />
+                  <Zap className="h-4 w-4" />
                   {t("endpointTest.testSpeed")}
                 </>
               )}
@@ -557,7 +557,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
           </div>
           {addError && (
             <div className="flex items-center gap-1.5 text-xs text-danger-text">
-              <AlertCircle className="h-3 w-3" />
+              <AlertCircle className="h-4 w-4" />
               {addError}
             </div>
           )}
@@ -648,7 +648,7 @@ const EndpointSpeedTest: React.FC<EndpointSpeedTestProps> = ({
         {/* 错误提示 */}
         {lastError && (
           <div className="flex items-center gap-1.5 text-xs text-danger-text">
-            <AlertCircle className="h-3 w-3" />
+            <AlertCircle className="h-4 w-4" />
             {lastError}
           </div>
         )}

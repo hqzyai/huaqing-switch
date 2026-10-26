@@ -21,6 +21,7 @@ nul
 
 # Flatpak build artifacts
 flatpak/cc-switch.deb
+flatpak/hq-model-switch.deb
 flatpak-build/
 flatpak-repo/
 .worktrees/
@@ -29,3 +30,11 @@ copilot-api
 .history
 CODEBUDDY.md
 mainWindow.js
+
+# Generated from the checked-in HQ design profile and pinned font packages
+/src/assets/generated/
+/src-tauri/icons/hq/
+/src/public/licenses/
+/validation/
+/shadcn-ui-unify.zip
+/.hq-model-switch/

@@ -2,7 +2,7 @@
 //!
 //! v3.10.0+ 统一管理架构：
 //! - 支持三应用开关（Claude/Codex/Gemini）
-//! - SSOT 存储在 ~/.cc-switch/skills/
+//! - SSOT 存储在 ~/.hq-model-switch/skills/
 
 use crate::app_config::{AppType, InstalledSkill, UnmanagedSkill};
 use crate::error::format_skill_error;
@@ -179,18 +179,18 @@ pub async fn migrate_skill_storage(
     SkillService::migrate_storage(&app_state.db, target).map_err(|e| e.to_string())
 }
 
-/// CC Switch 目录下放 Skill 主副本的位置（改过配置目录就是改后的）
+/// Huaqing Switch 目录下放 Skill 主副本的位置（改过配置目录就是改后的）
 fn cc_switch_skills_dir() -> std::path::PathBuf {
     crate::config::get_app_config_dir().join("skills")
 }
 
-/// 「存储与同步」里显示的 CC Switch 目录路径
+/// 「存储与同步」里显示的 Huaqing Switch 目录路径
 #[tauri::command]
 pub async fn get_cc_switch_skills_dir() -> Result<String, String> {
     Ok(cc_switch_skills_dir().to_string_lossy().to_string())
 }
 
-/// 在系统文件管理器里打开 CC Switch 目录下的 Skills 目录（不存在就先建）
+/// 在系统文件管理器里打开 Huaqing Switch 目录下的 Skills 目录（不存在就先建）
 #[tauri::command]
 pub async fn open_cc_switch_skills_dir(handle: AppHandle) -> Result<bool, String> {
     let dir = cc_switch_skills_dir();

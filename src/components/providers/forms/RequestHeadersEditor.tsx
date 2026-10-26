@@ -130,7 +130,7 @@ export function RequestHeadersEditor({
           })}
           className="h-7 shrink-0 gap-1"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4" />
           {t("opencode.addHeader", { defaultValue: "Add" })}
         </Button>
       </div>
@@ -172,7 +172,7 @@ export function RequestHeadersEditor({
                     defaultValue: "Value",
                   })}
                   placeholder={t("opencode.headerValuePlaceholder", {
-                    defaultValue: "CC Switch",
+                    defaultValue: "Huaqing Switch",
                   })}
                   className="min-w-0 flex-1"
                 />

@@ -1,6 +1,6 @@
 //! Provider import from deep link
 //!
-//! Handles importing provider configurations via ccswitch:// URLs.
+//! Handles importing provider configurations via hqmodelswitch:// URLs.
 
 use super::codex_link::{self, CodexLinkConfig};
 use super::grok_link::GrokLinkProfile;

@@ -124,7 +124,7 @@ export function ProfileManageDialog({
                           !editingName.trim() || updateMutation.isPending
                         }
                       >
-                        <Check className="h-3.5 w-3.5" />
+                        <Check className="h-4 w-4" />
                       </Button>
                     </HoverTip>
                     <HoverTip content={t("common.cancel")}>
@@ -135,7 +135,7 @@ export function ProfileManageDialog({
                         aria-label={t("common.cancel")}
                         onClick={cancelRename}
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-4 w-4" />
                       </Button>
                     </HoverTip>
                   </>
@@ -152,7 +152,7 @@ export function ProfileManageDialog({
                         aria-label={t("profiles.rename")}
                         onClick={() => startRename(profile.id, profile.name)}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <Pencil className="h-4 w-4" />
                       </Button>
                     </HoverTip>
                     <HoverTip content={t("profiles.delete")}>
@@ -168,7 +168,7 @@ export function ProfileManageDialog({
                           })
                         }
                       >
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </HoverTip>
                   </>

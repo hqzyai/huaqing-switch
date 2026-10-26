@@ -63,7 +63,7 @@ export function CustomUserAgentField({
               {t("providerForm.customUserAgentPresets", {
                 defaultValue: "预设",
               })}
-              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+              <ChevronDown className="h-4 w-4 opacity-60" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent

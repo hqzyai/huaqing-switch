@@ -101,7 +101,7 @@ export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
   const { data: savedClientHost } = useProxyClientHost();
   const saveClientHostMutation = useSetProxyClientHost();
   const [address, setAddress] = useState("127.0.0.1");
-  const [port, setPort] = useState("15721");
+  const [port, setPort] = useState("17621");
   const [addressError, setAddressError] = useState<string | null>(null);
   const [portError, setPortError] = useState<string | null>(null);
   const [clientHost, setClientHost] = useState("");
@@ -324,7 +324,7 @@ export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
                   onClick={() => void saveListen()}
                 >
                   {updateConfig.isPending && (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   )}
                   {t("routingSettings.saveAndRestart")}
                 </Button>
@@ -504,7 +504,7 @@ function UsingAppRow({
       </div>
       <Button variant="quiet" size="compact" onClick={onOpen}>
         {t("routingSettings.goTo")}
-        <ChevronRight className="h-3.5 w-3.5" />
+        <ChevronRight className="h-4 w-4" />
       </Button>
     </div>
   );

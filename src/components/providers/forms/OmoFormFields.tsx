@@ -167,14 +167,14 @@ function ModelCombobox({
           <span className="flex items-center shrink-0 ml-1 gap-0.5">
             {value && (
               <X
-                className="h-3.5 w-3.5 opacity-50 hover:opacity-100 cursor-pointer"
+                className="h-4 w-4 opacity-50 hover:opacity-100 cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   onChange("");
                 }}
               />
             )}
-            <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
+            <ChevronsUpDown className="h-4 w-4 opacity-50" />
           </span>
         </button>
       </PopoverTrigger>
@@ -916,7 +916,7 @@ export function OmoFormFields({
             <div className="flex items-center gap-1 text-sm font-medium">
               {def.display}
               <span className="relative inline-flex group/tip">
-                <HelpCircle className="h-3.5 w-3.5 text-fg-3 hover:text-fg-2 cursor-help shrink-0" />
+                <HelpCircle className="h-4 w-4 text-fg-3 hover:text-fg-2 cursor-help shrink-0" />
                 <span className="invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150 absolute left-0 top-full mt-1 z-50 w-[260px] rounded-md bg-popover text-popover-foreground border border-border shadow-md px-3 py-2 text-xs leading-relaxed font-normal pointer-events-none">
                   {t(def.tooltipKey)}
                 </span>
@@ -945,7 +945,7 @@ export function OmoFormFields({
                 toggleAdvancedEditor(scope, key, advStr, isExpanded)
               }
             >
-              <Settings className="h-3.5 w-3.5" />
+              <Settings className="h-4 w-4" />
             </Button>
           </HoverTip>
         </div>
@@ -1037,7 +1037,7 @@ export function OmoFormFields({
                 toggleAdvancedEditor(scope, key, advStr, isExpanded)
               }
             >
-              <Settings className="h-3.5 w-3.5" />
+              <Settings className="h-4 w-4" />
             </Button>
           </HoverTip>
           <HoverTip content={t("common.delete")}>
@@ -1054,7 +1054,7 @@ export function OmoFormFields({
                 removeAdvancedDraft(scope, key);
               }}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-4 w-4" />
             </Button>
           </HoverTip>
         </div>
@@ -1153,7 +1153,7 @@ export function OmoFormFields({
       className="h-6 text-xs"
       onClick={onClick}
     >
-      <Plus className="h-3.5 w-3.5 mr-1" />
+      <Plus className="h-4 w-4 mr-1" />
       {t("omo.custom", { defaultValue: "Custom" })}
     </Button>
   );
@@ -1198,9 +1198,9 @@ export function OmoFormFields({
             onClick={handleImportFromLocal}
           >
             {readLocalFile.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
             ) : (
-              <FolderInput className="h-3.5 w-3.5 mr-1" />
+              <FolderInput className="h-4 w-4 mr-1" />
             )}
             {t("omo.importLocal", { defaultValue: "Import Local" })}
           </Button>
@@ -1211,7 +1211,7 @@ export function OmoFormFields({
             className="h-7 text-xs"
             onClick={handleFillAllRecommended}
           >
-            <Wand2 className="h-3.5 w-3.5 mr-1" />
+            <Wand2 className="h-4 w-4 mr-1" />
             {t("omo.fillRecommended", { defaultValue: "Fill Recommended" })}
           </Button>
         </div>

@@ -30,7 +30,7 @@ interface AgyOAuthSectionProps {
 
 /**
  * 授权中心的 Antigravity 账号组。agy 只有一份全局登录（系统钥匙串），「默认」就是 agy 现在
- * 登着的那个号；「切换」把选中的号写进去。在这里删账号只删 CC Switch 的副本，不让 agy 登出。
+ * 登着的那个号；「切换」把选中的号写进去。在这里删账号只删 Huaqing Switch 的副本，不让 agy 登出。
  */
 export const AgyOAuthSection: React.FC<AgyOAuthSectionProps> = ({
   helpSide,

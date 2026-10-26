@@ -1,0 +1,23 @@
+{
+  "productName": "Huaqing Switch",
+  "packageName": "hq-model-switch",
+  "version": "0.1.0",
+  "identifier": "app.hqmodelswitch.desktop",
+  "dataDirectory": ".hq-model-switch",
+  "databaseFile": "hq-model-switch.db",
+  "deepLinkScheme": "hqmodelswitch",
+  "proxyPort": 17621,
+  "updatesEnabled": false,
+  "clientMode": "hq-only",
+  "websiteUrl": null,
+  "releaseRepository": null,
+  "upstream": {
+    "repository": "https://github.com/farion1231/cc-switch",
+    "commit": "cb90a2440d1a771d67f46b65b2e0f2ea5106ce85"
+  },
+  "design": {
+    "theme": "shadcn-neutral-v3",
+    "icons": "lucide-outline-v1",
+    "logo": "hqzy-logomark-v2"
+  }
+}

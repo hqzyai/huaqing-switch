@@ -1,0 +1,445 @@
+{
+  "id": "shadcn-neutral-v3",
+  "version": 3,
+  "description": "Skill-owned visual standard for existing React UI: semantic colors, typography, shape, spacing, density, states, elevation and motion; not an official shadcn preset.",
+  "radius": "0.5rem",
+  "fontFamily": "\"Geist\", \"Noto Sans SC\", sans-serif",
+  "light": {
+    "background": "#ffffff",
+    "foreground": "#171717",
+    "card": "#ffffff",
+    "card-foreground": "#171717",
+    "popover": "#ffffff",
+    "popover-foreground": "#171717",
+    "primary": "#171717",
+    "primary-foreground": "#fafafa",
+    "secondary": "#f5f5f5",
+    "secondary-foreground": "#171717",
+    "muted": "#f5f5f5",
+    "muted-foreground": "#525252",
+    "accent": "#f5f5f5",
+    "accent-foreground": "#171717",
+    "destructive": "#b91c1c",
+    "destructive-foreground": "#ffffff",
+    "border": "#d4d4d4",
+    "input": "#737373",
+    "ring": "#525252",
+    "sidebar": "#fafafa",
+    "sidebar-foreground": "#171717",
+    "sidebar-primary": "#171717",
+    "sidebar-primary-foreground": "#fafafa",
+    "sidebar-accent": "#f5f5f5",
+    "sidebar-accent-foreground": "#171717",
+    "sidebar-border": "#d4d4d4",
+    "sidebar-ring": "#525252"
+  },
+  "dark": {
+    "background": "#0a0a0a",
+    "foreground": "#fafafa",
+    "card": "#171717",
+    "card-foreground": "#fafafa",
+    "popover": "#171717",
+    "popover-foreground": "#fafafa",
+    "primary": "#fafafa",
+    "primary-foreground": "#171717",
+    "secondary": "#262626",
+    "secondary-foreground": "#fafafa",
+    "muted": "#262626",
+    "muted-foreground": "#a3a3a3",
+    "accent": "#262626",
+    "accent-foreground": "#fafafa",
+    "destructive": "#fca5a5",
+    "destructive-foreground": "#450a0a",
+    "border": "#404040",
+    "input": "#737373",
+    "ring": "#a3a3a3",
+    "sidebar": "#171717",
+    "sidebar-foreground": "#fafafa",
+    "sidebar-primary": "#fafafa",
+    "sidebar-primary-foreground": "#171717",
+    "sidebar-accent": "#262626",
+    "sidebar-accent-foreground": "#fafafa",
+    "sidebar-border": "#404040",
+    "sidebar-ring": "#a3a3a3"
+  },
+  "semantic": {
+    "light": {
+      "success": "#166534",
+      "success-foreground": "#ffffff",
+      "warning": "#92400e",
+      "warning-foreground": "#ffffff",
+      "info": "#1e40af",
+      "info-foreground": "#ffffff"
+    },
+    "dark": {
+      "success": "#86efac",
+      "success-foreground": "#052e16",
+      "warning": "#fcd34d",
+      "warning-foreground": "#451a03",
+      "info": "#93c5fd",
+      "info-foreground": "#172554"
+    }
+  },
+  "typography": {
+    "families": {
+      "ui": "\"Geist\", \"Noto Sans SC\", sans-serif",
+      "mono": "\"Geist Mono\", \"Noto Sans SC\", monospace"
+    },
+    "delivery": "self-hosted; pin releases and preserve font licenses",
+    "allowedWeights": [
+      400,
+      500,
+      600
+    ],
+    "fontSynthesis": "none",
+    "roles": {
+      "pageTitle": {
+        "fontSize": "1.75rem",
+        "lineHeight": "2.25rem",
+        "fontWeight": 600
+      },
+      "sectionTitle": {
+        "fontSize": "1.25rem",
+        "lineHeight": "1.75rem",
+        "fontWeight": 600
+      },
+      "cardTitle": {
+        "fontSize": "1rem",
+        "lineHeight": "1.5rem",
+        "fontWeight": 600
+      },
+      "body": {
+        "fontSize": "0.875rem",
+        "lineHeight": "1.375rem",
+        "fontWeight": 400
+      },
+      "longForm": {
+        "fontSize": "1rem",
+        "lineHeight": "1.625rem",
+        "fontWeight": 400
+      },
+      "label": {
+        "fontSize": "0.875rem",
+        "lineHeight": "1.25rem",
+        "fontWeight": 500
+      },
+      "button": {
+        "fontSize": "0.875rem",
+        "lineHeight": "1.25rem",
+        "fontWeight": 500
+      },
+      "input": {
+        "fontSize": "0.875rem",
+        "lineHeight": "1.25rem",
+        "fontWeight": 400
+      },
+      "touchInput": {
+        "fontSize": "1rem",
+        "lineHeight": "1.5rem",
+        "fontWeight": 400
+      },
+      "caption": {
+        "fontSize": "0.75rem",
+        "lineHeight": "1.125rem",
+        "fontWeight": 400
+      },
+      "code": {
+        "fontSize": "0.8125rem",
+        "lineHeight": "1.25rem",
+        "fontWeight": 400,
+        "fontFamily": "mono"
+      },
+      "metric": {
+        "fontSize": "1.75rem",
+        "lineHeight": "2.25rem",
+        "fontWeight": 600,
+        "fontVariantNumeric": "tabular-nums"
+      },
+      "badge": {
+        "fontSize": "0.75rem",
+        "lineHeight": "1.125rem",
+        "fontWeight": 500
+      }
+    },
+    "sources": {
+      "Geist": {
+        "repository": "https://github.com/vercel/geist-font",
+        "license": "SIL OFL 1.1",
+        "licenseUrl": "https://github.com/vercel/geist-font/blob/main/OFL.txt"
+      },
+      "Geist Mono": {
+        "repository": "https://github.com/vercel/geist-font",
+        "license": "SIL OFL 1.1",
+        "licenseUrl": "https://github.com/vercel/geist-font/blob/main/OFL.txt"
+      },
+      "Noto Sans SC": {
+        "repository": "https://github.com/notofonts/noto-cjk",
+        "license": "SIL OFL 1.1",
+        "licenseUrl": "https://github.com/notofonts/noto-cjk/blob/main/Sans/LICENSE"
+      }
+    }
+  },
+  "radii": {
+    "none": "0",
+    "small": "0.25rem",
+    "control": "0.375rem",
+    "surface": "0.5rem",
+    "panel": "0.75rem",
+    "pill": "9999px",
+    "circle": "50%"
+  },
+  "componentRadii": {
+    "button": "control",
+    "iconButton": "control",
+    "input": "control",
+    "textarea": "control",
+    "select": "control",
+    "card": "panel",
+    "dialog": "panel",
+    "sheet": "panel",
+    "menu": "surface",
+    "popover": "surface",
+    "tooltip": "control",
+    "badge": "small",
+    "chip": "small",
+    "checkbox": "small",
+    "avatar": "circle",
+    "statusDot": "circle",
+    "radio": "circle",
+    "switchTrack": "pill",
+    "switchThumb": "circle",
+    "tableCell": "none",
+    "connectedControlInterior": "none",
+    "tableContainer": "surface",
+    "tabsContainer": "surface",
+    "tab": "control",
+    "toast": "surface",
+    "alert": "surface",
+    "progress": "small",
+    "skeleton": "surface"
+  },
+  "borderWidth": "1px",
+  "spacing": {
+    "0": "0",
+    "2": "0.125rem",
+    "4": "0.25rem",
+    "6": "0.375rem",
+    "8": "0.5rem",
+    "12": "0.75rem",
+    "16": "1rem",
+    "20": "1.25rem",
+    "24": "1.5rem",
+    "32": "2rem",
+    "40": "2.5rem",
+    "48": "3rem",
+    "64": "4rem"
+  },
+  "density": {
+    "standard": {
+      "controlMinHeight": "2.25rem",
+      "controlPaddingInline": "0.75rem",
+      "iconButtonMinSize": "2.25rem",
+      "menuItemMinHeight": "2rem",
+      "tableRowMinHeight": "2.75rem",
+      "tableCellPaddingBlock": "0.625rem"
+    },
+    "compact": {
+      "controlMinHeight": "2rem",
+      "controlPaddingInline": "0.5rem",
+      "iconButtonMinSize": "2rem",
+      "menuItemMinHeight": "1.75rem",
+      "tableRowMinHeight": "2.25rem",
+      "tableCellPaddingBlock": "0.375rem"
+    },
+    "touch": {
+      "controlMinHeight": "2.75rem",
+      "controlPaddingInline": "0.75rem",
+      "iconButtonMinSize": "2.75rem",
+      "menuItemMinHeight": "2.75rem",
+      "tableRowMinHeight": "3rem",
+      "tableCellPaddingBlock": "0.75rem"
+    }
+  },
+  "layout": {
+    "pagePadding": "1.5rem",
+    "pagePaddingNarrow": "1rem",
+    "sectionGap": "2rem",
+    "cardPadding": "1.25rem",
+    "cardPaddingNarrow": "1rem",
+    "cardContentGap": "1rem",
+    "toolbarGap": "0.5rem",
+    "inlineGap": "0.5rem",
+    "formFieldGap": "1rem",
+    "labelControlGap": "0.375rem",
+    "controlHintGap": "0.375rem",
+    "dialogPadding": "1.5rem",
+    "dialogPaddingNarrow": "1rem",
+    "dialogSectionGap": "1.25rem",
+    "menuPadding": "0.25rem",
+    "menuItemPaddingInline": "0.5rem",
+    "tableCellPaddingInline": "0.75rem",
+    "badgePaddingInline": "0.375rem",
+    "tooltipPaddingBlock": "0.375rem",
+    "tooltipPaddingInline": "0.5rem",
+    "emptyStatePadding": "2rem",
+    "popoverViewportInset": "0.5rem"
+  },
+  "sizes": {
+    "checkbox": "1rem",
+    "radio": "1rem",
+    "switchWidth": "2rem",
+    "switchHeight": "1.125rem",
+    "switchThumb": "0.875rem",
+    "textareaMinHeight": "5rem",
+    "badgeMinHeight": "1.375rem",
+    "avatarSmall": "1.5rem",
+    "avatarDefault": "2rem",
+    "avatarLarge": "2.5rem",
+    "dialogWidth": "30rem",
+    "dialogWideWidth": "40rem",
+    "dialogViewportInset": "1rem",
+    "tooltipMaxWidth": "20rem",
+    "proseMaxWidth": "65ch",
+    "minimumTarget": "1.5rem",
+    "touchTarget": "2.75rem"
+  },
+  "branding": {
+    "profile": "hqzy-logomark-v2",
+    "appliesTo": "HQZY branded projects or explicit user selection; preserve other explicitly established product brands",
+    "assetPathBase": "skill-root",
+    "rights": "User-provided brand assets; no open-source license asserted",
+    "favicon": {
+      "asset": "assets/branding/hqzyai-logomark.svg",
+      "publicFilename": "hqzyai-logomark.svg",
+      "mimeType": "image/svg+xml",
+      "viewBox": "0 0 793 568",
+      "preserveAspectRatio": true,
+      "sha256": "720d90e26fcd94a1000c5a40cd2dd042c07299f5bae601ba7e3052330e534c52"
+    },
+    "consoleLogo": {
+      "asset": "assets/branding/hqzyai-logomark.svg",
+      "publicFilename": "hqzyai-logomark.svg",
+      "alt": "HQZY",
+      "viewBox": "0 0 793 568",
+      "standard": {
+        "width": "28px",
+        "height": "28px"
+      },
+      "compact": {
+        "width": "24px",
+        "height": "24px"
+      },
+      "objectFit": "contain",
+      "flexShrink": 0,
+      "display": "block",
+      "draggable": false,
+      "preserveAspectRatio": true,
+      "preserveOriginalColors": true,
+      "sha256": "720d90e26fcd94a1000c5a40cd2dd042c07299f5bae601ba7e3052330e534c52"
+    },
+    "legacyProfileAliases": [
+      "hqzy-agentos-v1"
+    ]
+  },
+  "icons": {
+    "profile": "lucide-outline-v1",
+    "library": "Lucide",
+    "package": "lucide-react",
+    "website": "https://lucide.dev/",
+    "importStrategy": "named-static",
+    "small": "1rem",
+    "default": "1.25rem",
+    "large": "1.5rem",
+    "strokeWidth": 1.75,
+    "strokeScaling": "constant-screen-width",
+    "strokeLinecap": "round",
+    "strokeLinejoin": "round",
+    "style": "outline",
+    "fill": "none",
+    "color": "currentColor"
+  },
+  "focus": {
+    "width": "2px",
+    "offset": "2px",
+    "style": "solid",
+    "colorToken": "ring",
+    "offsetColor": "actual surface",
+    "tabIndicatorWidth": "2px"
+  },
+  "interaction": {
+    "disabledOpacity": 0.5,
+    "light": {
+      "primaryHover": "#303030",
+      "primaryActive": "#404040",
+      "subtleHover": "#eeeeee",
+      "subtleActive": "#e5e5e5",
+      "outlineHover": "#f5f5f5",
+      "outlineActive": "#eeeeee",
+      "destructiveHover": "#991b1b",
+      "destructiveActive": "#7f1d1d",
+      "controlHoverBorder": "#525252",
+      "selectedBackground": "#f5f5f5",
+      "selectedForeground": "#171717",
+      "overlay": "rgb(0 0 0 / 0.4)"
+    },
+    "dark": {
+      "primaryHover": "#e5e5e5",
+      "primaryActive": "#d4d4d4",
+      "subtleHover": "#303030",
+      "subtleActive": "#404040",
+      "outlineHover": "#262626",
+      "outlineActive": "#303030",
+      "destructiveHover": "#fecaca",
+      "destructiveActive": "#fee2e2",
+      "controlHoverBorder": "#a3a3a3",
+      "selectedBackground": "#262626",
+      "selectedForeground": "#fafafa",
+      "overlay": "rgb(0 0 0 / 0.6)"
+    },
+    "linkUnderlineWidth": "2px",
+    "linkUnderlineOffset": "3px"
+  },
+  "elevation": {
+    "light": {
+      "none": "none",
+      "popover": "0 4px 12px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.06)",
+      "modal": "0 16px 48px rgb(0 0 0 / 0.16), 0 4px 12px rgb(0 0 0 / 0.08)"
+    },
+    "dark": {
+      "none": "none",
+      "popover": "0 4px 12px rgb(0 0 0 / 0.28), 0 1px 3px rgb(0 0 0 / 0.20)",
+      "modal": "0 16px 48px rgb(0 0 0 / 0.40), 0 4px 12px rgb(0 0 0 / 0.24)"
+    }
+  },
+  "componentElevation": {
+    "button": "none",
+    "input": "none",
+    "card": "none",
+    "stickyToolbar": "none",
+    "menu": "popover",
+    "popover": "popover",
+    "tooltip": "popover",
+    "dialog": "modal",
+    "sheet": "modal",
+    "toast": "popover"
+  },
+  "layers": {
+    "base": 0,
+    "sticky": 10,
+    "popover": 20,
+    "modalBackdrop": 40,
+    "modal": 50,
+    "modalPopover": 60,
+    "toast": 80,
+    "tooltip": 90
+  },
+  "motion": {
+    "fast": "120ms",
+    "normal": "180ms",
+    "slow": "240ms",
+    "easing": "cubic-bezier(0.2, 0, 0, 1)",
+    "enterEasing": "cubic-bezier(0, 0, 0.2, 1)",
+    "exitEasing": "cubic-bezier(0.4, 0, 1, 1)",
+    "reducedMotion": "remove nonessential transforms and transitions; preserve completion callbacks and existing progress feedback"
+  }
+}

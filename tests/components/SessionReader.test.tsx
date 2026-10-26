@@ -471,9 +471,9 @@ describe("SessionReader", () => {
     expect(
       screen.queryByRole("navigation", { name: "对话目录" }),
     ).not.toBeInTheDocument();
-    expect(window.localStorage.getItem("cc-switch.sessionReader.outline")).toBe(
-      "false",
-    );
+    expect(
+      window.localStorage.getItem("hq-model-switch.sessionReader.outline"),
+    ).toBe("false");
   });
 
   it("导出为 Markdown 文件：用会话标题做文件名，内容与复制为 Markdown 一致", async () => {

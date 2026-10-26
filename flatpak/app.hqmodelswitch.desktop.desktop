@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=HQ Model Switch
+Comment=Local model API connection manager
+Exec=hq-model-switch
+Icon=app.hqmodelswitch.desktop
+Terminal=false
+Categories=Utility;Development;
+StartupNotify=true

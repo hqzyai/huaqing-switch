@@ -461,10 +461,7 @@ export function PiSystemPromptFiles() {
                 className="min-w-16 shrink-0"
               >
                 <RefreshCw
-                  className={cn(
-                    "h-3.5 w-3.5",
-                    query.isFetching && "animate-spin",
-                  )}
+                  className={cn("h-4 w-4", query.isFetching && "animate-spin")}
                   aria-hidden="true"
                 />
                 {t("common.refresh")}
@@ -844,7 +841,7 @@ export const PiPromptTemplates = forwardRef<
             size="compact"
             onClick={() => void templates.refetch()}
           >
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
             {t("common.refresh")}
           </Button>
         </div>
@@ -865,7 +862,7 @@ export const PiPromptTemplates = forwardRef<
               size="regular"
               onClick={() => setEditor({ mode: "create" })}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               {t("pi.prompts.newTemplate")}
             </Button>
           </div>

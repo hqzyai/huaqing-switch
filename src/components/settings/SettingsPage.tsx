@@ -271,7 +271,7 @@ export function SettingsPage({
     acknowledgeRestart();
   }, [acknowledgeRestart]);
 
-  // 路径类设置（配置目录、CC Switch 数据目录）点「保存」才写入；改了数据目录要重启
+  // 路径类设置（配置目录、Huaqing Switch 数据目录）点「保存」才写入；改了数据目录要重启
   const handleSave = useCallback(async () => {
     try {
       const result = await saveSettings(undefined, { silent: false });
@@ -418,9 +418,7 @@ export function SettingsPage({
                     disabled={isSaving}
                     onClick={() => void handleSave()}
                   >
-                    {isSaving && (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    )}
+                    {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                     {t("common.save")}
                   </Button>
                 ) : null
@@ -510,7 +508,7 @@ export function SettingsPage({
                   size="compact"
                   onClick={() => void handleRevealLogFile()}
                 >
-                  <FolderOpen className="h-3.5 w-3.5" />
+                  <FolderOpen className="h-4 w-4" />
                   {t("settings.advanced.logConfig.openLog")}
                 </Button>
               }

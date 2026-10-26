@@ -228,12 +228,12 @@ mod tests {
             false,
         );
         let contract =
-            GeminiProjection::proxy_contract(&route, "http://127.0.0.1:15721", "PROXY_MANAGED");
+            GeminiProjection::proxy_contract(&route, "http://127.0.0.1:17621", "PROXY_MANAGED");
         assert_eq!(
             contract.env,
             vec![
                 ("GEMINI_MODEL".into(), "m".into()),
-                (BASE_URL_ENV.into(), "http://127.0.0.1:15721".into()),
+                (BASE_URL_ENV.into(), "http://127.0.0.1:17621".into()),
                 (API_KEY_ENV.into(), "PROXY_MANAGED".into()),
             ]
         );

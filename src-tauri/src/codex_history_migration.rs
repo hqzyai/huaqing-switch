@@ -202,7 +202,7 @@ pub fn maybe_migrate_codex_provider_template_bucket(
 /// 重新开启并再次勾选即可补迁关闭期间产生的官方会话。
 /// custom 桶里官方与第三方会话无法区分，自动逻辑绝不反向搬回；
 /// 用户可在关闭开关时选择按备份账本精确还原（见 `restore_codex_official_history_from_backups`）。
-/// 迁移前 jsonl / state DB 均备份到 `~/.cc-switch/backups/codex-official-history-unify-v1/`。
+/// 迁移前 jsonl / state DB 均备份到 `~/.hq-model-switch/backups/codex-official-history-unify-v1/`。
 pub fn maybe_migrate_codex_official_history_to_unified_bucket(
 ) -> Result<CodexHistoryProviderBucketMigrationOutcome, AppError> {
     if !crate::settings::unify_codex_session_history() {
@@ -1497,7 +1497,7 @@ base_url = "https://aihubmix.example/v1"
             "model_provider = \"openai\"\n"
         ));
         assert!(!codex_config_text_routes_custom(
-            "base_url = \"http://127.0.0.1:15721/codex\"\n"
+            "base_url = \"http://127.0.0.1:17621/codex\"\n"
         ));
         assert!(!codex_config_text_routes_custom(""));
         assert!(!codex_config_text_routes_custom("not toml ["));
@@ -2860,7 +2860,7 @@ model_provider = "aihubmix"
         assert!(!ids.contains("my-local-relay"));
     }
 
-    /// 端到端测试用的隔离 HOME：CC Switch 设置与 `~/.codex` 都落在临时目录。
+    /// 端到端测试用的隔离 HOME：Huaqing Switch 设置与 `~/.codex` 都落在临时目录。
     struct IsolatedHome {
         dir: tempfile::TempDir,
         original_test_home: Option<OsString>,
@@ -2936,7 +2936,7 @@ model_provider = "aihubmix"
         let session_dir = codex_dir.join("sessions/2026/09/01");
         fs::create_dir_all(&session_dir).expect("create session dir");
         // 休眠 custom 表保持原样：迁移不碰 config.toml。
-        let config = "model = \"gpt-5.5\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"http://127.0.0.1:15721/v1\"\nexperimental_bearer_token = \"PROXY_MANAGED\"\n";
+        let config = "model = \"gpt-5.5\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"http://127.0.0.1:17621/v1\"\nexperimental_bearer_token = \"PROXY_MANAGED\"\n";
         fs::write(codex_dir.join("config.toml"), config).expect("write config");
 
         let plain = session_dir.join("rollout-legacy.jsonl");

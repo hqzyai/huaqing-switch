@@ -707,7 +707,7 @@ export function SkillsPage({
                           >
                             <Download
                               aria-hidden="true"
-                              className="h-3 w-3"
+                              className="h-4 w-4"
                               strokeWidth={2}
                             />
                             {formatInstalls(row.installs, i18n.language)}
@@ -745,10 +745,7 @@ export function SkillsPage({
                           {t("skillsPage.discover.installed", {
                             count: enabledAppCount(status.skill),
                           })}
-                          <ChevronRight
-                            className="h-3.5 w-3.5"
-                            strokeWidth={2}
-                          />
+                          <ChevronRight className="h-4 w-4" strokeWidth={2} />
                         </button>
                       ) : status.kind === "conflict" ? (
                         <button
@@ -763,7 +760,7 @@ export function SkillsPage({
                             })}
                           </span>
                           <ChevronRight
-                            className="h-3.5 w-3.5 shrink-0"
+                            className="h-4 w-4 shrink-0"
                             strokeWidth={2}
                           />
                         </button>
@@ -778,7 +775,7 @@ export function SkillsPage({
                           })}
                           className="cursor-not-allowed ps-2.5"
                         >
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                           {t("skillsPage.discover.installing")}
                         </Button>
                       ) : (
@@ -822,7 +819,7 @@ export function SkillsPage({
                 }
               >
                 {fetchingSkillsSh && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 )}
                 {t("skills.skillssh.loadMore")}
               </Button>
@@ -867,7 +864,7 @@ function InstallToPopover({
             {t("skillsPage.installTo.prefix")}
             {label}
           </span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+          <ChevronDown className="h-4 w-4 shrink-0" strokeWidth={2} />
         </Button>
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
@@ -954,7 +951,7 @@ function RepoPopover({
           className="pe-1.5 ps-2.5 text-fg-2"
         >
           {label}
-          <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
+          <ChevronDown className="h-4 w-4" strokeWidth={2} />
         </Button>
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>

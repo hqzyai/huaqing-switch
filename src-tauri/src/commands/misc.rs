@@ -76,10 +76,15 @@ pub async fn copy_text_to_clipboard(text: String) -> Result<bool, String> {
 /// 检查更新
 #[tauri::command]
 pub async fn check_for_updates(handle: AppHandle) -> Result<bool, String> {
+    crate::brand::require_updates()?;
     handle
         .opener()
         .open_url(
-            "https://github.com/farion1231/cc-switch/releases/latest",
+            format!(
+                "{}/releases/latest",
+                crate::brand::release_repository()
+                    .ok_or("Huaqing Switch release repository is not configured")?
+            ),
             None::<String>,
         )
         .map_err(|e| format!("打开更新页面失败: {e}"))?;
@@ -99,20 +104,22 @@ fn portable_zip_url(version: &str, arm64: bool) -> Option<String> {
         return None;
     }
     let suffix = if arm64 { "-arm64" } else { "" };
+    let repository = crate::brand::release_repository()?;
     Some(format!(
-        "https://github.com/farion1231/cc-switch/releases/download/v{version}/CC-Switch-v{version}-Windows{suffix}-Portable.zip"
+        "{repository}/releases/download/v{version}/HQ-Model-Switch-v{version}-Windows{suffix}-Portable.zip"
     ))
 }
 
-/// 便携版更新：直接下载对应架构的新版压缩包（解压覆盖即可，数据在 ~/.cc-switch 不受影响）。
+/// 便携版更新：直接下载对应架构的新版压缩包（解压覆盖即可，数据在 ~/.hq-model-switch 不受影响）。
 /// 不做原地替换自身 exe：那样很容易被杀毒软件当成病毒拦截。
 #[tauri::command]
 pub async fn open_portable_update_download(
     handle: AppHandle,
     version: String,
 ) -> Result<bool, String> {
+    crate::brand::require_updates()?;
     let url = portable_zip_url(&version, cfg!(target_arch = "aarch64"))
-        .unwrap_or_else(|| "https://github.com/farion1231/cc-switch/releases/latest".to_string());
+        .ok_or("Huaqing Switch release repository is not configured")?;
     handle
         .opener()
         .open_url(url, None::<String>)
@@ -1518,7 +1525,7 @@ async fn fetch_github_latest_version(client: &reqwest::Client, repo: &str) -> Op
     let url = format!("https://api.github.com/repos/{repo}/releases/latest");
     let resp = client
         .get(&url)
-        .header("User-Agent", "cc-switch")
+        .header("User-Agent", "hq-model-switch")
         .header("Accept", "application/vnd.github+json")
         .timeout(LATEST_PROBE_TIMEOUT)
         .send()
@@ -2299,7 +2306,7 @@ fn effective_path_string() -> String {
 
 /// fnm only puts Node on PATH through `fnm env`, which prepends a per-shell
 /// `%LOCALAPPDATA%\fnm_multishells\<id>` link to that shell's PATH. Nothing is
-/// written to the registry PATH, so a GUI-launched CC Switch sees neither node,
+/// written to the registry PATH, so a GUI-launched Huaqing Switch sees neither node,
 /// npm nor the npm global CLIs (#8484, #6991). `<fnm dir>\aliases\default` is a
 /// stable link to the default Node installation; on Windows node.exe, npm.cmd
 /// and npm global commands live directly in that directory (no `bin`).
@@ -5858,10 +5865,10 @@ fn run_windows_start_command(args: &[&str], terminal_name: &str) -> Result<(), S
     run_windows_start_command_with_env(args, terminal_name, &[])
 }
 
-/// 组装 `cmd /C start ...`。终端里跑的 `claude` 等命令按这里的 PATH 查找：CC Switch
+/// 组装 `cmd /C start ...`。终端里跑的 `claude` 等命令按这里的 PATH 查找：Huaqing Switch
 /// 被 MSI 自动重启后只剩机器级 PATH（#6061），或是在装 CLI 之前就已启动，进程 PATH
 /// 都会缺用户级条目（#3877、#8446）。和检测、生命周期命令（#8173）一样用补全后的 PATH，
-/// 只影响启动的终端，不改 CC Switch 自身的环境；Windows Terminal 从命令行开新标签时
+/// 只影响启动的终端，不改 Huaqing Switch 自身的环境；Windows Terminal 从命令行开新标签时
 /// 也沿用调用方的环境。
 #[cfg(target_os = "windows")]
 fn windows_start_command(
@@ -5927,11 +5934,11 @@ pub(crate) fn launch_terminal_running(command_line: &str, label: &str) -> Result
         let content = format!(
             r#"#!/usr/bin/env sh
 trap 'rm -f "{script_path}"' EXIT
-echo "[cc-switch] Starting: {label}"
+echo "[hq-model-switch] Starting: {label}"
 echo ""
 {cmd}
 echo ""
-echo "[cc-switch] Command exited. Press Enter to close."
+echo "[hq-model-switch] Command exited. Press Enter to close."
 read -r _
 "#,
             script_path = file.display(),
@@ -6052,7 +6059,7 @@ read -r _
 
         let bat_file = temp_dir.join(format!("cc_switch_{}_{}.bat", label, pid));
         let content = format!(
-            "@echo off\r\necho [cc-switch] Starting: {label}\r\necho.\r\n{cmd}\r\necho.\r\necho [cc-switch] Command exited. Press any key to close.\r\npause >nul\r\ndel \"%~f0\" >nul 2>&1\r\n",
+            "@echo off\r\necho [hq-model-switch] Starting: {label}\r\necho.\r\n{cmd}\r\necho.\r\necho [hq-model-switch] Command exited. Press any key to close.\r\npause >nul\r\ndel \"%~f0\" >nul 2>&1\r\n",
             label = label,
             cmd = command_line,
         );
@@ -6143,14 +6150,8 @@ mod tests {
 
     #[test]
     fn portable_zip_url_matches_release_asset_names() {
-        assert_eq!(
-            portable_zip_url("4.0.12", false).as_deref(),
-            Some("https://github.com/farion1231/cc-switch/releases/download/v4.0.12/CC-Switch-v4.0.12-Windows-Portable.zip")
-        );
-        assert_eq!(
-            portable_zip_url("v4.1.0-beta.1", true).as_deref(),
-            Some("https://github.com/farion1231/cc-switch/releases/download/v4.1.0-beta.1/CC-Switch-v4.1.0-beta.1-Windows-arm64-Portable.zip")
-        );
+        assert_eq!(portable_zip_url("4.0.12", false).as_deref(), None);
+        assert_eq!(portable_zip_url("v4.1.0-beta.1", true).as_deref(), None);
         for bad in ["", "v", "latest", "4.0/../x", "4.0.0?x=1"] {
             assert!(portable_zip_url(bad, false).is_none(), "{bad}");
         }
@@ -6603,9 +6604,9 @@ mod tests {
     fn agy_key_launch() -> ProviderLaunch {
         ProviderLaunch {
             title: "Using a private Antigravity profile for this provider:",
-            detail: Some(PathBuf::from("/home/me/.cc-switch/agy/relay")),
+            detail: Some(PathBuf::from("/home/me/.hq-model-switch/agy/relay")),
             program: "agy",
-            args: vec!["--gemini_dir=/home/me/.cc-switch/agy/relay".to_string()],
+            args: vec!["--gemini_dir=/home/me/.hq-model-switch/agy/relay".to_string()],
             batch_command: format!("agy \"--gemini_dir=%{AGY_DIR_BATCH_VAR}%\""),
             env: vec![
                 ("GEMINI_API_KEY", Some("k'$(echo no)`x`%PATH%".to_string())),
@@ -6613,7 +6614,7 @@ mod tests {
             ],
             batch_vars: vec![(
                 AGY_DIR_BATCH_VAR,
-                r"C:\Users\张三\.cc-switch\agy\relay".to_string(),
+                r"C:\Users\张三\.hq-model-switch\agy\relay".to_string(),
             )],
             cleanup: Vec::new(),
         }
@@ -6624,7 +6625,7 @@ mod tests {
         let launch = agy_key_launch();
         assert_eq!(
             unix_launch_command(&launch),
-            "env -u CC_SWITCH_LAUNCH_ENV_0 -u CC_SWITCH_LAUNCH_ENV_1 -u GOOGLE_GEMINI_BASE_URL GEMINI_API_KEY=\"$CC_SWITCH_LAUNCH_ENV_0\" agy --gemini_dir=/home/me/.cc-switch/agy/relay"
+            "env -u CC_SWITCH_LAUNCH_ENV_0 -u CC_SWITCH_LAUNCH_ENV_1 -u GOOGLE_GEMINI_BASE_URL GEMINI_API_KEY=\"$CC_SWITCH_LAUNCH_ENV_0\" agy --gemini_dir=/home/me/.hq-model-switch/agy/relay"
         );
         assert_eq!(
             unix_launch_env_file(&launch),
@@ -6636,7 +6637,7 @@ mod tests {
         };
         assert_eq!(
             unix_launch_command(&plain),
-            "agy --gemini_dir=/home/me/.cc-switch/agy/relay"
+            "agy --gemini_dir=/home/me/.hq-model-switch/agy/relay"
         );
         assert_eq!(unix_launch_env_file(&plain), "");
     }
@@ -6719,7 +6720,7 @@ mod tests {
         assert!(status.success());
         assert_eq!(
             std::fs::read_to_string(&out).unwrap(),
-            "k'$(echo no)`x`%PATH%\nunset\nunset\n--gemini_dir=/home/me/.cc-switch/agy/relay\n"
+            "k'$(echo no)`x`%PATH%\nunset\nunset\n--gemini_dir=/home/me/.hq-model-switch/agy/relay\n"
         );
         assert!(
             !env_file.exists(),
@@ -6742,7 +6743,7 @@ mod tests {
             carried,
             vec![(
                 "CC_SWITCH_INTERNAL_ENV_2".to_string(),
-                r"C:\Users\张三\.cc-switch\agy\relay".to_string()
+                r"C:\Users\张三\.hq-model-switch\agy\relay".to_string()
             )]
         );
     }

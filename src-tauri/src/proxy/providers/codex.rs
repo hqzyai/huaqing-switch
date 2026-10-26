@@ -165,7 +165,7 @@ pub fn inject_codex_chat_prompt_cache_key(
 
 /// Whether this Codex provider's real upstream speaks the native Anthropic
 /// Messages protocol (`/v1/messages`). The local Codex client always talks to CC
-/// Switch through the Responses API, so CC Switch bridges Responses ⇄ Anthropic.
+/// Switch through the Responses API, so Huaqing Switch bridges Responses ⇄ Anthropic.
 ///
 /// Determined solely from explicit config (apiFormat / wire_api); no base_url
 /// guessing — Anthropic gateway addresses vary widely and guessing easily misfires.
@@ -1258,7 +1258,7 @@ wire_api = "responses"
         use crate::codex_config::{codex_disables_web_search, CodexCatalogToolProfile};
         use crate::live::project::codex::{CodexProjection, RowInput};
 
-        for base_url in ["https://api.githubcopilot.com", "http://localhost:15721/v1"] {
+        for base_url in ["https://api.githubcopilot.com", "http://localhost:17621/v1"] {
             let mut provider = create_copilot_provider();
             provider.settings_config = json!({
                 "auth": {},

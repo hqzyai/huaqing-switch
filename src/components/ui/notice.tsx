@@ -72,7 +72,7 @@ export function Notice({
   return (
     <div
       className={cn(
-        "flex gap-2.5 rounded-panel py-2.5 pe-3.5 ps-[19px] text-body text-fg-1",
+        "flex gap-2.5 rounded-[8px] py-2.5 pe-3.5 ps-[19px] text-body text-fg-1",
         // 只有一行时整行上下居中；有第二行时图标对齐第一行
         children ? "items-start" : "items-center",
         style.box,

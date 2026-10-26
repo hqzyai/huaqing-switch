@@ -68,9 +68,9 @@ interface ProviderCardProps {
 
 /** 当前那张：模式色边框 + 淡底；共存式「已添加」是中性的。 */
 const TONE_CLASS: Record<CardTone, string> = {
-  direct: "border-direct-border bg-direct-soft",
-  route: "border-route-border bg-route-soft",
-  stack: "border-stack-border bg-stack-soft",
+  direct: "border-input bg-selected",
+  route: "border-input bg-selected",
+  stack: "border-input bg-selected",
   neutral: "border-border-strong bg-subtle",
 };
 
@@ -89,7 +89,7 @@ export function CardChipBadge({ chip }: { chip: CardChip }) {
     <span
       title={chip.title}
       className={cn(
-        "inline-flex h-[18px] shrink-0 items-center whitespace-nowrap rounded-full px-1.5 text-badge",
+        "inline-flex h-[18px] shrink-0 items-center whitespace-nowrap rounded-sm px-1.5 text-badge",
         CHIP_CLASS[chip.tone],
         chip.title && "cursor-help",
       )}
@@ -406,14 +406,14 @@ export function ProviderCard({
                   </span>
                   {managedCodexAccount.reauth_required && (
                     <span className="inline-flex shrink-0 items-center gap-1 text-warning-text">
-                      <AlertTriangle className="h-3.5 w-3.5" />
+                      <AlertTriangle className="h-4 w-4" />
                       {t("codexOauth.reauthBadge", "需要重新登录")}
                     </span>
                   )}
                 </>
               ) : isCodexAuthStatusError ? (
                 <span className="inline-flex min-w-0 items-center gap-1 text-warning-text">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
                   <span className="truncate">
                     {t("codex.accountStatusUnavailable", {
                       defaultValue: "无法读取账号信息",
@@ -423,7 +423,7 @@ export function ProviderCard({
               ) : isCodexAuthStatusSuccess ? (
                 <>
                   <span className="inline-flex min-w-0 items-center gap-1 text-sm text-warning-text">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
                     <span className="truncate">
                       {t("codex.boundAccountUnavailable", {
                         defaultValue: "绑定的账号不可用",

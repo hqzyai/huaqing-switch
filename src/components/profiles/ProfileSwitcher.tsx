@@ -124,7 +124,7 @@ export function ProfileSwitcher({ activeApp }: ProfileSwitcherProps) {
             <span className="max-w-[9rem] truncate">
               {currentProfile?.name ?? t("profiles.none")}
             </span>
-            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </button>
         </PopoverTrigger>
         <PopoverContent

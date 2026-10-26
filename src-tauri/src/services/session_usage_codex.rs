@@ -5551,7 +5551,7 @@ mod tests {
         write_jsonl(&plain, &lines);
         assert_eq!(sync_test_file(&db, &plain, &[&plain])?.imported, 1);
 
-        // CC Switch 没赶上第二条用量，文件就被压缩了
+        // Huaqing Switch 没赶上第二条用量，文件就被压缩了
         lines.push(token_count(200, 100, 20));
         write_jsonl(&plain, &lines);
         let compressed = compress_rollout(&plain);
@@ -5932,7 +5932,7 @@ mod tests {
         }
 
         // 临时 HOME 里只放一个指向真实语料的只读 symlink，避免测试
-        // 触碰真实 ~/.cc-switch / ~/.codex 下的任何其他内容。
+        // 触碰真实 ~/.hq-model-switch / ~/.codex 下的任何其他内容。
         let temp = tempfile::tempdir().expect("create temp home");
         fs::create_dir_all(temp.path().join(".codex")).expect("mkdir .codex");
         #[cfg(unix)]

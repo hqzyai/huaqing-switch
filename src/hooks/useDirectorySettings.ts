@@ -70,7 +70,7 @@ const sanitizeDir = (value?: string | null): string | undefined => {
 const computeDefaultAppConfigDir = async (): Promise<string | undefined> => {
   try {
     const home = await homeDir();
-    return await join(home, ".cc-switch");
+    return await join(home, ".hq-model-switch");
   } catch (error) {
     console.error(
       "[useDirectorySettings] Failed to resolve default app config dir",

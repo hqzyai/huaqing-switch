@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
@@ -14,7 +15,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const RELEASES_URL = "https://github.com/farion1231/cc-switch/releases";
+const RELEASES_URL = BRAND.releaseRepository
+  ? `${BRAND.releaseRepository}/releases`
+  : null;
 
 interface DatabaseUpgradeProps {
   payload: {
@@ -31,7 +34,13 @@ interface DatabaseUpgradeProps {
 // incompatible: 已是最新版本但数据库仍过新（可能来自第三方客户端），升级无法解决
 // updating: 正在下载/安装更新
 // error: 升级过程出错
-type Phase = "checking" | "upgradable" | "incompatible" | "updating" | "error";
+type Phase =
+  | "disabled"
+  | "checking"
+  | "upgradable"
+  | "incompatible"
+  | "updating"
+  | "error";
 
 interface DownloadProgress {
   downloaded: number;
@@ -48,7 +57,9 @@ interface DownloadProgress {
  */
 export function DatabaseUpgrade({ payload }: DatabaseUpgradeProps) {
   const { t } = useTranslation();
-  const [phase, setPhase] = useState<Phase>("checking");
+  const [phase, setPhase] = useState<Phase>(
+    BRAND.updatesEnabled ? "checking" : "disabled",
+  );
   const [availableVersion, setAvailableVersion] = useState<string | null>(null);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -59,6 +70,7 @@ export function DatabaseUpgrade({ payload }: DatabaseUpgradeProps) {
 
   // 启动时检查可用更新，决定 upgradable / incompatible
   useEffect(() => {
+    if (!BRAND.updatesEnabled) return;
     let cancelled = false;
     (async () => {
       try {
@@ -89,6 +101,7 @@ export function DatabaseUpgrade({ payload }: DatabaseUpgradeProps) {
   }, []);
 
   const startUpgrade = useCallback(async () => {
+    if (!BRAND.updatesEnabled) return;
     setPhase("updating");
     setProgress(null);
     setErrorMsg(null);
@@ -149,7 +162,7 @@ export function DatabaseUpgrade({ payload }: DatabaseUpgradeProps) {
             <p className="text-sm text-fg-2">
               {t(
                 "dbUpgrade.description",
-                "当前数据库由更新版本的 CC Switch 创建，需要升级应用后才能继续使用。升级不会删除你的数据。",
+                "当前数据库由更新版本的 Huaqing Switch 创建，需要升级应用后才能继续使用。升级不会删除你的数据。",
               )}
             </p>
             {dbVersion != null && supportedVersion != null && (
@@ -175,6 +188,12 @@ export function DatabaseUpgrade({ payload }: DatabaseUpgradeProps) {
             </p>
           )}
         </div>
+
+        {phase === "disabled" && (
+          <p className="text-body text-fg-2" role="status">
+            {t("branding.databaseUpdateUnavailable")}
+          </p>
+        )}
 
         {phase === "checking" && (
           <p className="flex items-center gap-2 text-sm text-fg-2">
@@ -261,7 +280,7 @@ export function DatabaseUpgrade({ payload }: DatabaseUpgradeProps) {
             </Button>
           )}
 
-          {(phase === "incompatible" || phase === "error") && (
+          {RELEASES_URL && (phase === "incompatible" || phase === "error") && (
             <Button
               variant="outline"
               className="gap-2"

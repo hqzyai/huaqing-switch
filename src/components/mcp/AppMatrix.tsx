@@ -140,11 +140,11 @@ export function MatrixCell({
             )}
           >
             {state === "fail" ? (
-              <AlertTriangle className="h-3 w-3" strokeWidth={2.25} />
+              <AlertTriangle className="h-4 w-4" strokeWidth={2.25} />
             ) : (
               <Check
                 className={cn(
-                  "h-3 w-3 transition-transform duration-[120ms] ease-out motion-reduce:transition-none",
+                  "h-4 w-4 transition-transform duration-[120ms] ease-out motion-reduce:transition-none",
                   state === "on" ? "scale-100" : "scale-0",
                 )}
                 strokeWidth={3}

@@ -86,7 +86,7 @@ mod switching {
     async fn switching_writes_the_target_and_keeps_the_displaced_login() {
         let (dir, login, manager) = manager();
         add(&manager, "bob").await;
-        // agy 登着一个 CC Switch 还没见过的号
+        // agy 登着一个 Huaqing Switch 还没见过的号
         set_live(&login, &credential("alice", "a1"));
 
         manager.switch_to("bob").await.unwrap();
@@ -213,7 +213,7 @@ mod switching {
         assert_eq!(manager.live_account_id().await.as_deref(), Some("bob"));
         assert_eq!(manager.list().await.len(), 2);
 
-        // 在 CC Switch 里删掉的号不再收回来，改问 agy
+        // 在 Huaqing Switch 里删掉的号不再收回来，改问 agy
         manager.remove("bob").await.unwrap();
         assert_eq!(manager.live_account_id().await, None);
         assert_eq!(*login.writes.lock().unwrap(), 0);

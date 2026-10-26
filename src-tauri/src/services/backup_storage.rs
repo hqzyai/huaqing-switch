@@ -1,4 +1,4 @@
-//! 「备份与恢复」页的备份占用总览：列出 CC Switch 在本机留下的各类备份、
+//! 「备份与恢复」页的备份占用总览：列出 Huaqing Switch 在本机留下的各类备份、
 //! 它们的位置与大小，由用户自己决定删不删。
 //!
 //! 安全边界：前端只能传类别 id，路径一律由这里按写入方的口径算出，绝不接收
@@ -51,7 +51,7 @@ fn categories() -> Vec<Category> {
     let app_dir = get_app_config_dir();
     let app_backups = app_dir.join("backups");
     // 写入引擎与旧版接管备份按设备目录落盘（不受 app_config_dir 覆盖影响）。
-    let device_backups = get_home_dir().join(".cc-switch").join("backups");
+    let device_backups = get_home_dir().join(".hq-model-switch").join("backups");
     let env_backups =
         crate::services::env_manager::backup_dir().unwrap_or_else(|_| device_backups.clone());
 
@@ -106,7 +106,7 @@ fn categories() -> Vec<Category> {
             name == "config.json.migrated"
         }),
         files("legacyDbUpgrade", app_dir.clone(), |name| {
-            name.starts_with("cc-switch.db.") && name.contains("-backup-")
+            name.starts_with("hq-model-switch.db.") && name.contains("-backup-")
         }),
         whole("legacyToolSearch", app_dir.join("toolsearch-backups")),
     ]

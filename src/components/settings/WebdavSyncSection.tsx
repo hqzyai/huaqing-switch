@@ -166,7 +166,7 @@ function buildPasswordPreservationKey(values: {
   return JSON.stringify({
     baseUrl: values.baseUrl ?? "",
     username: values.username ?? "",
-    remoteRoot: values.remoteRoot ?? "cc-switch-sync",
+    remoteRoot: values.remoteRoot ?? "hq-model-switch-sync",
     profile: values.profile ?? "default",
   });
 }
@@ -219,9 +219,9 @@ function ActionButton({
     <Button {...props} disabled={actionState !== "idle" || disabled}>
       <span className="inline-flex items-center gap-2">
         {isActive ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <Icon className="h-3.5 w-3.5" />
+          <Icon className="h-4 w-4" />
         )}
         {isActive ? activeLabel : idleLabel}
       </span>
@@ -267,7 +267,7 @@ export function WebdavSyncSection({
     baseUrl: config?.baseUrl ?? "",
     username: config?.username ?? "",
     password: config?.password ?? "",
-    remoteRoot: config?.remoteRoot ?? "cc-switch-sync",
+    remoteRoot: config?.remoteRoot ?? "hq-model-switch-sync",
     profile: config?.profile ?? "default",
     autoSync: config?.autoSync ?? false,
   }));
@@ -284,7 +284,7 @@ export function WebdavSyncSection({
   );
   const [s3Endpoint, setS3Endpoint] = useState(s3Config?.endpoint ?? "");
   const [s3RemoteRoot, setS3RemoteRoot] = useState(
-    s3Config?.remoteRoot ?? "cc-switch-sync",
+    s3Config?.remoteRoot ?? "hq-model-switch-sync",
   );
   const [s3Profile, setS3Profile] = useState(s3Config?.profile ?? "default");
   const [s3AutoSync, setS3AutoSync] = useState(s3Config?.autoSync ?? false);
@@ -340,7 +340,7 @@ export function WebdavSyncSection({
     setForm(() => {
       const nextBaseUrl = config.baseUrl ?? "";
       const nextUsername = config.username ?? "";
-      const nextRemoteRoot = config.remoteRoot ?? "cc-switch-sync";
+      const nextRemoteRoot = config.remoteRoot ?? "hq-model-switch-sync";
       const nextProfile = config.profile ?? "default";
       const nextKey = buildPasswordPreservationKey({
         baseUrl: nextBaseUrl,
@@ -380,7 +380,7 @@ export function WebdavSyncSection({
     setS3AccessKeyId(s3Config.accessKeyId ?? "");
     setS3SecretAccessKey(s3Config.secretAccessKey ?? "");
     setS3Endpoint(s3Config.endpoint ?? "");
-    setS3RemoteRoot(s3Config.remoteRoot ?? "cc-switch-sync");
+    setS3RemoteRoot(s3Config.remoteRoot ?? "hq-model-switch-sync");
     setS3Profile(s3Config.profile ?? "default");
     setS3AutoSync(s3Config.autoSync ?? false);
     setS3Enabled(s3Config.enabled ?? false);
@@ -461,7 +461,7 @@ export function WebdavSyncSection({
       username: form.username.trim(),
       // 未重新触碰密码时，提交空值让后端沿用已保存密码，表单里的值仅用于 UI 显示
       password: passwordTouched ? form.password : "",
-      remoteRoot: form.remoteRoot.trim() || "cc-switch-sync",
+      remoteRoot: form.remoteRoot.trim() || "hq-model-switch-sync",
       profile: form.profile.trim() || "default",
       autoSync: form.autoSync,
     };
@@ -677,7 +677,7 @@ export function WebdavSyncSection({
       accessKeyId: s3AccessKeyId.trim(),
       secretAccessKey: s3SecretAccessKey,
       endpoint: s3Endpoint.trim() || undefined,
-      remoteRoot: s3RemoteRoot.trim() || "cc-switch-sync",
+      remoteRoot: s3RemoteRoot.trim() || "hq-model-switch-sync",
       profile: s3Profile.trim() || "default",
     };
   }, [
@@ -941,8 +941,8 @@ export function WebdavSyncSection({
   const lastError = config?.status?.lastError?.trim();
   const showAutoSyncError =
     !!lastError && config?.status?.lastErrorSource === "auto";
-  const currentRemotePath = `/${form.remoteRoot.trim() || "cc-switch-sync"}/v2/db-v6/${form.profile.trim() || "default"}`;
-  const currentS3RemotePath = `${s3Bucket.trim() || "bucket"}/${s3RemoteRoot.trim() || "cc-switch-sync"}/v2/db-v6/${s3Profile.trim() || "default"}`;
+  const currentRemotePath = `/${form.remoteRoot.trim() || "hq-model-switch-sync"}/v2/db-v6/${form.profile.trim() || "default"}`;
+  const currentS3RemotePath = `${s3Bucket.trim() || "bucket"}/${s3RemoteRoot.trim() || "hq-model-switch-sync"}/v2/db-v6/${s3Profile.trim() || "default"}`;
   const remoteDbCompatDisplay = formatDbCompatVersion(
     remoteInfo?.dbCompatVersion,
   );
@@ -1064,7 +1064,7 @@ export function WebdavSyncSection({
             {/* Preset hint */}
             {activePreset?.hint && (
               <div className="flex items-start gap-2 pl-44 text-xs text-fg-2">
-                <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <Info className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>{t(activePreset.hint)}</span>
               </div>
             )}
@@ -1077,7 +1077,7 @@ export function WebdavSyncSection({
               <Input
                 value={form.remoteRoot}
                 onChange={(e) => updateField("remoteRoot", e.target.value)}
-                placeholder="cc-switch-sync"
+                placeholder="hq-model-switch-sync"
                 className="text-xs flex-1"
                 disabled={isLoading}
               />
@@ -1127,7 +1127,7 @@ export function WebdavSyncSection({
                 {t("settings.webdavSync.autoSyncLastErrorTitle")}
               </p>
               <p className="mt-1 break-all whitespace-pre-wrap">{lastError}</p>
-              <p className="mt-1 text-[11px] text-danger-text">
+              <p className="mt-1 text-caption text-danger-text">
                 {t("settings.webdavSync.autoSyncLastErrorHint")}
               </p>
             </div>
@@ -1167,7 +1167,7 @@ export function WebdavSyncSection({
             )}
             {!dirty && justSaved && (
               <span className="inline-flex items-center gap-1.5 text-xs text-success-text animate-in fade-in duration-200">
-                <Check className="h-3 w-3" />
+                <Check className="h-4 w-4" />
                 {t("settings.webdavSync.saved")}
               </span>
             )}
@@ -1247,7 +1247,7 @@ export function WebdavSyncSection({
             {/* Preset hint */}
             {activeS3Preset?.hint && (
               <div className="flex items-start gap-2 pl-44 text-xs text-fg-2">
-                <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <Info className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>{t(activeS3Preset.hint)}</span>
               </div>
             )}
@@ -1354,7 +1354,7 @@ export function WebdavSyncSection({
                   setS3RemoteRoot(e.target.value);
                   markS3Dirty();
                 }}
-                placeholder="cc-switch-sync"
+                placeholder="hq-model-switch-sync"
                 className="text-xs flex-1"
                 disabled={isS3Loading}
               />
@@ -1434,7 +1434,7 @@ export function WebdavSyncSection({
               <p className="mt-1 break-all whitespace-pre-wrap">
                 {s3LastError}
               </p>
-              <p className="mt-1 text-[11px] text-danger-text">
+              <p className="mt-1 text-caption text-danger-text">
                 {t("settings.s3Sync.autoSyncLastErrorHint")}
               </p>
             </div>
@@ -1474,7 +1474,7 @@ export function WebdavSyncSection({
             )}
             {!s3Dirty && s3JustSaved && (
               <span className="inline-flex items-center gap-1.5 text-xs text-success-text animate-in fade-in duration-200">
-                <Check className="h-3 w-3" />
+                <Check className="h-4 w-4" />
                 {t("settings.s3Sync.saved")}
               </span>
             )}

@@ -195,7 +195,7 @@ export function ProviderCardActions({
           )}
           {onTest && (
             <DropdownMenuItem disabled={isTesting} onSelect={onTest}>
-              {isTesting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {isTesting && <Loader2 className="h-4 w-4 animate-spin" />}
               {t("provider.connectivityCheck")}
             </DropdownMenuItem>
           )}
@@ -265,7 +265,7 @@ function PrimaryButton({ button }: { button: CardButton }) {
               className="w-auto gap-0.5 px-1.5 text-fg-2 hover:text-fg-1"
             >
               {icon}
-              <ChevronDown className="h-3 w-3 opacity-70" />
+              <ChevronDown className="h-4 w-4 opacity-70" />
             </Button>
           </DropdownMenuTrigger>
         </HoverTip>

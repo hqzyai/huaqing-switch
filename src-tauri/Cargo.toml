@@ -1,10 +1,9 @@
 [package]
-name = "cc-switch"
-version = "4.0.18"
-description = "All-in-One Assistant for Claude Code, Codex & Gemini CLI"
+name = "hq-model-switch"
+version = "0.1.0"
+description = "Local model API connections for HQHarness"
 authors = ["Jason Young"]
 license = "MIT"
-repository = "https://github.com/farion1231/cc-switch"
 edition = "2021"
 rust-version = "1.85.0"
 

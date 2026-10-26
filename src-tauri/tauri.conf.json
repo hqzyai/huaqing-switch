@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CC Switch",
-  "version": "4.0.18",
-  "identifier": "com.ccswitch.desktop",
+  "productName": "Huaqing Switch",
+  "version": "0.1.0",
+  "identifier": "app.hqmodelswitch.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3000",
@@ -14,9 +14,12 @@
     "windows": [
       {
         "label": "main",
-        "title": "",
+        "title": "Huaqing Switch",
         "titleBarStyle": "Overlay",
-        "trafficLightPosition": { "x": 14, "y": 16 },
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 16
+        },
         "width": 1000,
         "height": 650,
         "minWidth": 900,
@@ -28,7 +31,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: https: http:; script-src 'self' 'sha256-ls27Lc1OytcVawXPVMplz6LyKz2i9KYAVBw3u79qyB4='; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https: http:",
+      "csp": "default-src 'self'; img-src 'self' data: https: http:; script-src 'self' 'sha256-ixp8Fts9hzQzKZQLuki15bmj2eu9zf/Ma0a+YW9IKZk='; font-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https: http:",
       "assetProtocol": {
         "enable": true,
         "scope": []
@@ -38,13 +41,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/hq/32x32.png",
+      "icons/hq/128x128.png",
+      "icons/hq/128x128@2x.png",
+      "icons/hq/icon.icns",
+      "icons/hq/icon.ico"
     ],
     "windows": {
       "wix": {
@@ -53,20 +56,15 @@
     },
     "macOS": {
       "minimumSystemVersion": "12.0"
-    }
+    },
+    "shortDescription": "Local model API connections for HQHarness",
+    "resources": ["../LICENSE", "../UPSTREAM.md", "../brand.config.json"]
   },
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["ccswitch"]
+        "schemes": ["hqmodelswitch"]
       }
-    },
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM4MDI4QzlBNTczOTI4RTMKUldUaktEbFhtb3dDeUM5US9kT0FmdGR5Ti9vQzcwa2dTMlpibDVDUmQ2M0VGTzVOWnd0SGpFVlEK",
-      "endpoints": [
-        "https://dl.ccswitch.io/latest.json",
-        "https://github.com/farion1231/cc-switch/releases/latest/download/latest.json"
-      ]
     }
   }
 }

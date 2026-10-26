@@ -81,7 +81,7 @@ export function QuotaBreakdownChevron() {
   return (
     <ChevronDown
       aria-hidden
-      className="h-3 w-3 shrink-0 transition-transform group-hover/breakdown:text-fg-1 group-data-[state=open]/breakdown:rotate-180"
+      className="h-4 w-4 shrink-0 transition-transform group-hover/breakdown:text-fg-1 group-data-[state=open]/breakdown:rotate-180"
       strokeWidth={1.5}
     />
   );

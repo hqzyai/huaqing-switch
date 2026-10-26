@@ -645,7 +645,7 @@ export interface LaunchInput {
 }
 
 /**
- * Antigravity：第三方 Key 只能经环境变量交给 CC Switch 打开的那个 agy，管不到用户自己敲的
+ * Antigravity：第三方 Key 只能经环境变量交给 Huaqing Switch 打开的那个 agy，管不到用户自己敲的
  * `agy`，所以没有「启用 / 使用中」，每张卡的主操作就是「打开终端」，哪张都能删。
  */
 export function buildLaunchSections(input: LaunchInput): ProviderSection[] {

@@ -44,7 +44,7 @@ import { useSidebarStatus, type AppNavStatus } from "@/hooks/useSidebarStatus";
 import { HoverTip } from "@/components/ui/hover-tip";
 import { DRAG_REGION_ATTR, DRAG_REGION_STYLE, isMac } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-import ccswitchLogo from "@/assets/icons/logo.svg";
+import brandLogo from "@/assets/branding/hqzyai-logomark.svg";
 import { APP_DISPLAY_NAME, AppGlyph } from "./AppGlyph";
 
 const NO_DRAG = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
@@ -145,13 +145,16 @@ function SidebarTopBar({
           style={DRAG_REGION_STYLE as React.CSSProperties}
         >
           <img
-            src={ccswitchLogo}
-            alt=""
+            src={brandLogo}
+            alt="HQZY"
             draggable={false}
-            className="pointer-events-none h-5 w-5 shrink-0"
+            className="pointer-events-none h-7 w-7 shrink-0 object-contain"
           />
-          <span className="pointer-events-none me-auto min-w-0 truncate text-strong font-semibold text-fg-1">
-            CC Switch
+          <span
+            title="Huaqing Switch"
+            className="pointer-events-none me-auto min-w-0 truncate text-strong font-semibold text-fg-1"
+          >
+            Huaqing Switch
           </span>
           {toggleButton}
         </div>
@@ -188,15 +191,18 @@ function SidebarTopBar({
       {!collapsed && !isMac() && (
         // 左上角品牌（Windows / Linux）：图标 + 名字。macOS 左上角留给红绿灯，不放。
         // 图片不接收指针事件，拖它也是在拖窗口
-        <span className="pointer-events-none me-auto flex min-w-0 items-center gap-2 ps-1.5">
+        <span
+          title="Huaqing Switch"
+          className="pointer-events-none me-auto flex min-w-0 items-center gap-2 ps-1.5"
+        >
           <img
-            src={ccswitchLogo}
-            alt=""
+            src={brandLogo}
+            alt="HQZY"
             draggable={false}
             className="h-[22px] w-[22px] shrink-0"
           />
           <span className="truncate text-strong font-semibold text-fg-1">
-            CC Switch
+            Huaqing Switch
           </span>
         </span>
       )}
@@ -459,7 +465,7 @@ function AppNavItem({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "absolute -end-[7px] -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2",
+                  "absolute -end-[7px] -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2",
                   selected ? "border-selected" : "border-sidebar",
                   marker.className,
                 )}
@@ -555,7 +561,7 @@ function NavItem({
   alert?: string;
   /** 圆点：有更新 */
   dot?: boolean;
-  /** 工具更新用中性色（很多人不想追新）；CC Switch 自己的更新用绿色，和工具更新分开 */
+  /** 工具更新用中性色（很多人不想追新）；Huaqing Switch 自己的更新用绿色，和工具更新分开 */
   dotTone?: "neutral" | "success";
   /** 圆点放在行尾（设置目录里的「关于」），而不是图标角上 */
   endDot?: boolean;
@@ -587,7 +593,7 @@ function NavItem({
       {collapsed && alert && (
         <span
           className={cn(
-            "absolute -end-[7px] -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 bg-danger text-action-fg",
+            "absolute -end-[7px] -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2 bg-danger text-action-fg",
             ring,
           )}
         >
@@ -763,7 +769,7 @@ function SettingsDirectory({
       </div>
       {!collapsed && version && (
         <div className="shrink-0 px-4 pb-4 text-caption text-fg-3">
-          CC Switch v{version}
+          Huaqing Switch v{version}
         </div>
       )}
     </>

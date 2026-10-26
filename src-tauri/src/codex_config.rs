@@ -18,7 +18,7 @@ use toml_edit::DocumentMut;
 
 pub const CC_SWITCH_CODEX_MODEL_PROVIDER_ID: &str = "custom";
 /// Temporary model-provider id used while the built-in `codex-official`
-/// provider is routed through CC Switch.  A dedicated id is an ownership
+/// provider is routed through Huaqing Switch.  A dedicated id is an ownership
 /// marker: unlike a generic localhost `base_url`, it can be detected and
 /// cleaned up without mistaking a user's own local provider for takeover.
 pub const CC_SWITCH_CODEX_OFFICIAL_PROXY_PROVIDER_ID: &str = "cc-switch-official";
@@ -1831,7 +1831,7 @@ impl std::fmt::Display for CodexBundledModelsError {
 }
 
 /// 本机 Codex 自带的完整模型列表（`codex debug models --bundled`）。和账号无关，版本和
-/// 那个二进制一致。不能用不带 `--bundled` 的版本：那会读到 CC Switch 自己写的目录。
+/// 那个二进制一致。不能用不带 `--bundled` 的版本：那会读到 Huaqing Switch 自己写的目录。
 pub(crate) fn load_codex_bundled_models() -> Result<Vec<Value>, CodexBundledModelsError> {
     first_bundled_catalog(codex_cli_candidates(), |catalog| {
         catalog
@@ -2224,7 +2224,7 @@ pub(crate) fn apply_codex_auto_review_model(catalog: &mut Value, model: &str) ->
 }
 
 /// Codex 自带的 OpenAI 官方模型列表（`codex debug models --bundled`），给第三方的 GPT
-/// 行按模型名找官方条目用。只缓存成功读到的列表：Codex 升级后要重启 CC Switch 才换新。
+/// 行按模型名找官方条目用。只缓存成功读到的列表：Codex 升级后要重启 Huaqing Switch 才换新。
 #[cfg(not(test))]
 static CODEX_OPENAI_OFFICIAL_MODELS_CACHE: OnceCell<Vec<Value>> = OnceCell::new();
 
@@ -2264,7 +2264,7 @@ fn codex_openai_official_models() -> Vec<Value> {
 
 /// 按 Codex 自己查模型信息的规则找官方条目（codex-rs `models-manager/src/manager.rs` 的
 /// `construct_model_info_from_candidates`）：先按最长前缀，没有再去掉一层命名空间
-/// （`openai/gpt-5.5`）重试；区分大小写。结果就是没有 CC Switch 的目录时 Codex 会用的那条。
+/// （`openai/gpt-5.5`）重试；区分大小写。结果就是没有 Huaqing Switch 的目录时 Codex 会用的那条。
 fn find_codex_official_model<'a>(model: &str, candidates: &'a [Value]) -> Option<&'a Value> {
     fn longest_prefix<'a>(model: &str, candidates: &'a [Value]) -> Option<&'a Value> {
         candidates
@@ -3053,7 +3053,7 @@ pub fn read_codex_live_settings() -> Result<Value, AppError> {
     Ok(json!({ "auth": auth, "config": cfg_text }))
 }
 
-/// Whether a live Codex config is the official route projected by an older CC Switch
+/// Whether a live Codex config is the official route projected by an older Huaqing Switch
 /// (`model_provider = "cc-switch-official"`).
 pub fn codex_config_has_official_proxy_route(config_text: &str) -> bool {
     if !config_text.contains(CC_SWITCH_CODEX_OFFICIAL_PROXY_PROVIDER_ID) {
@@ -3188,15 +3188,15 @@ mod tests {
 
     #[test]
     fn official_proxy_route_is_recognized_by_its_address() {
-        let proxy = |url: &str| url == "http://127.0.0.1:15721/v1";
+        let proxy = |url: &str| url == "http://127.0.0.1:17621/v1";
         for (config, expected) in [
-            ("openai_base_url = \"http://127.0.0.1:15721/v1/\"\n", true),
-            ("model_provider = \"openai\"\nopenai_base_url = \"http://127.0.0.1:15721/v1\"\n", true),
-            ("model_provider = \"custom\"\n[model_providers.custom]\nname = \"OpenAI\"\nbase_url = \"http://127.0.0.1:15721/v1\"\nrequires_openai_auth = true\n", true),
+            ("openai_base_url = \"http://127.0.0.1:17621/v1/\"\n", true),
+            ("model_provider = \"openai\"\nopenai_base_url = \"http://127.0.0.1:17621/v1\"\n", true),
+            ("model_provider = \"custom\"\n[model_providers.custom]\nname = \"OpenAI\"\nbase_url = \"http://127.0.0.1:17621/v1\"\nrequires_openai_auth = true\n", true),
             // 别的地址（比如其他工具改道到自己的本地服务）不算。
             ("openai_base_url = \"http://127.0.0.1:10531/v1\"\n", false),
             // 选了别的 provider，改道不生效。
-            ("model_provider = \"relay\"\nopenai_base_url = \"http://127.0.0.1:15721/v1\"\n", false),
+            ("model_provider = \"relay\"\nopenai_base_url = \"http://127.0.0.1:17621/v1\"\n", false),
             // 官方直连的统一会话镜像表没有地址。
             ("model_provider = \"custom\"\n[model_providers.custom]\nname = \"OpenAI\"\nrequires_openai_auth = true\n", false),
             ("model = \"gpt-5.5\"\n", false),

@@ -61,7 +61,7 @@ export const AppCountBar: React.FC<AppCountBarProps> = ({
                   className={APP_ICON_MAP[app].badgeClass}
                 >
                   <span className="opacity-75">{APP_ICON_MAP[app].label}:</span>
-                  <span className="font-bold ml-1">{count}</span>
+                  <span className="font-semibold ml-1">{count}</span>
                 </Badge>
               );
             }
@@ -95,7 +95,7 @@ export const AppCountBar: React.FC<AppCountBarProps> = ({
                   )}
                 >
                   <span className="opacity-75">{APP_ICON_MAP[app].label}:</span>
-                  <span className="ml-1 font-bold">{count}</span>
+                  <span className="ml-1 font-semibold">{count}</span>
                 </button>
               </HoverTip>
             );

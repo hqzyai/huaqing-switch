@@ -581,7 +581,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                     setRevealed({});
                   }}
                 >
-                  <X className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  <X className="h-4 w-4" strokeWidth={1.5} />
                 </Button>
               </HoverTip>
             </div>
@@ -672,7 +672,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                   >
                     <Check
                       aria-hidden="true"
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                      className="mt-0.5 h-4 w-4 shrink-0"
                       strokeWidth={1.5}
                     />
                     <span>
@@ -998,10 +998,7 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                                     })
                                   }
                                 >
-                                  <X
-                                    className="h-3.5 w-3.5"
-                                    strokeWidth={1.5}
-                                  />
+                                  <X className="h-4 w-4" strokeWidth={1.5} />
                                 </Button>
                               </HoverTip>
                             </div>
@@ -1123,9 +1120,9 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
                           className="inline-flex h-7 items-center gap-1 rounded-control pe-2 ps-1.5 text-body font-medium text-fg-2 transition-colors hover:bg-subtle hover:text-fg-1"
                         >
                           {revealJson ? (
-                            <EyeOff className="h-3.5 w-3.5" strokeWidth={2} />
+                            <EyeOff className="h-4 w-4" strokeWidth={2} />
                           ) : (
-                            <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+                            <Eye className="h-4 w-4" strokeWidth={2} />
                           )}
                           {t("mcpPage.drawer.showValues")}
                         </button>
@@ -1360,7 +1357,7 @@ function AddRowButton({
       onClick={onClick}
       className="-ms-1.5 inline-flex h-7 items-center gap-1 self-start whitespace-nowrap rounded-control pe-2 ps-1.5 text-body font-medium text-fg-2 transition-colors hover:bg-subtle hover:text-fg-1"
     >
-      <Plus aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
+      <Plus aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
       {children}
     </button>
   );

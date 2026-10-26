@@ -234,9 +234,9 @@ export function AppsPage() {
                 }
               >
                 {tools.batchAction === "update" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <ArrowUpCircle className="h-3.5 w-3.5" />
+                  <ArrowUpCircle className="h-4 w-4" />
                 )}
                 {t("settings.updateAllTools", { count: updatableCount })}
               </Button>
@@ -249,7 +249,7 @@ export function AppsPage() {
             >
               <RefreshCw
                 className={cn(
-                  "h-3.5 w-3.5",
+                  "h-4 w-4",
                   tools.isLoadingTools && "animate-spin",
                 )}
               />
@@ -329,11 +329,11 @@ export function AppsPage() {
               className="invisible grid w-max justify-self-end [&>*]:col-start-1 [&>*]:row-start-1"
             >
               <Button variant="neutral" size="compact" tabIndex={-1}>
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-4 w-4" />
                 {t("settings.toolInstall")}
               </Button>
               <Button variant="neutral" size="compact" tabIndex={-1}>
-                <ArrowUpCircle className="h-3.5 w-3.5" />
+                <ArrowUpCircle className="h-4 w-4" />
                 {t("settings.toolUpdate")}
               </Button>
             </div>
@@ -421,7 +421,7 @@ export function AppsPage() {
               size="regular"
               onClick={() => void tools.handleCopyInstallCommands()}
             >
-              <Copy className="h-3.5 w-3.5" />
+              <Copy className="h-4 w-4" />
               {t("common.copy")}
             </Button>
           </DialogFooter>
@@ -594,7 +594,7 @@ function ToolRow({
     </div>
   ) : broken ? (
     <span className="inline-flex items-center gap-1 text-caption font-medium text-warning-text">
-      <AlertTriangle className="h-3.5 w-3.5" />
+      <AlertTriangle className="h-4 w-4" />
       {t("appsPage.notRunnable")}
     </span>
   ) : (
@@ -610,11 +610,11 @@ function ToolRow({
       aria-busy={isBusy}
     >
       {isBusy && busyAction !== "uninstall" ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Loader2 className="h-4 w-4 animate-spin" />
       ) : action === "install" ? (
-        <Download className="h-3.5 w-3.5" />
+        <Download className="h-4 w-4" />
       ) : (
-        <ArrowUpCircle className="h-3.5 w-3.5" />
+        <ArrowUpCircle className="h-4 w-4" />
       )}
       {action === "install"
         ? t("settings.toolInstall")
@@ -638,7 +638,7 @@ function ToolRow({
           {t("appsPage.otherInstalls", { count: otherInstalls })}
           <ChevronDown
             className={cn(
-              "h-3 w-3 transition-transform",
+              "h-4 w-4 transition-transform",
               expanded && "rotate-180",
             )}
           />
@@ -705,7 +705,7 @@ function ToolRow({
   const nodeLine =
     !isVersionLoading && nodeGap ? (
       <p className="flex items-start gap-1 text-caption text-warning-text">
-        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         {t("appsPage.updateNeedsNode", {
           version: info?.latest_version,
           required: nodeGap.required,
@@ -781,7 +781,7 @@ function ToolRow({
                 onSelect={onUninstall}
                 className="text-danger-text focus:text-danger-text"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-4 w-4" />
                 {t("settings.toolUninstall")}
               </DropdownMenuItem>
             </DropdownMenuContent>

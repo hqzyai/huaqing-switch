@@ -184,7 +184,7 @@ export function ManualUninstallDialog({
                       })}
                       onClick={() => void copyCommand(command)}
                     >
-                      <Copy className="h-3.5 w-3.5" />
+                      <Copy className="h-4 w-4" />
                       {t("common.copy")}
                     </Button>
                   </div>

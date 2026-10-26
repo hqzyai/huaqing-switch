@@ -53,9 +53,9 @@
              Newer tauri-plugin-updater versions only pass AUTOLAUNCHAPP while restart_after_install is
              enabled (the default). If that is ever turned off, an update install falls back to the polite
              close request and nothing is terminated. -->
-        <util:CloseApplication Id="TerminateAppForUpdate" Target="cc-switch.exe"
+        <util:CloseApplication Id="TerminateAppForUpdate" Target="hq-model-switch.exe"
                                CloseMessage="no" TerminateProcess="0" RebootPrompt="no">AUTOLAUNCHAPP</util:CloseApplication>
-        <util:CloseApplication Id="CloseAppForInstall" Target="cc-switch.exe"
+        <util:CloseApplication Id="CloseAppForInstall" Target="hq-model-switch.exe"
                                CloseMessage="yes" RebootPrompt="no">NOT AUTOLAUNCHAPP</util:CloseApplication>
 
         <!-- Whether the desktop shortcut is still there before this install runs (AppSearch runs before the old version is removed) -->
@@ -254,13 +254,13 @@
             </Component>
             {{/each~}}
             {{#if enable_elevated_update_task}}
-            <Component Id="UpdateTask" Guid="C492327D-9720-4CD5-8DB8-F09082AF44BE" Win64="$(var.Win64)">
+            <Component Id="UpdateTask" Guid="0A8DFE68-344A-5E26-BB6C-CF56930E11A3" Win64="$(var.Win64)">
                 <File Id="UpdateTask" Source="update.xml" KeyPath="yes" Checksum="yes"/>
             </Component>
-            <Component Id="UpdateTaskInstaller" Guid="011F25ED-9BE3-50A7-9E9B-3519ED2B9932" Win64="$(var.Win64)">
+            <Component Id="UpdateTaskInstaller" Guid="BE14195C-97AB-55A9-BC19-87754D2B7817" Win64="$(var.Win64)">
                 <File Id="UpdateTaskInstaller" Source="install-task.ps1" KeyPath="yes" Checksum="yes"/>
             </Component>
-            <Component Id="UpdateTaskUninstaller" Guid="D4F6CC3F-32DC-5FD0-95E8-782FFD7BBCE1" Win64="$(var.Win64)">
+            <Component Id="UpdateTaskUninstaller" Guid="65977F9E-1FF1-53AF-ABEE-AAA8D57C34EF" Win64="$(var.Win64)">
                 <File Id="UpdateTaskUninstaller" Source="uninstall-task.ps1" KeyPath="yes" Checksum="yes"/>
             </Component>
             {{/if}}

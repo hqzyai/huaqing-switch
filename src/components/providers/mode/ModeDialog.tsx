@@ -353,7 +353,7 @@ function EnterBody({
           disabled={busy || !pick}
           onClick={() => void confirm()}
         >
-          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
           {target === "route"
             ? t("mode.dialog.confirmRoute")
             : t("mode.dialog.confirmStack")}
@@ -466,7 +466,7 @@ function ExitBody({
           disabled={busy}
           onClick={() => void confirm()}
         >
-          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
           {t("mode.dialog.confirmDirect")}
         </Button>
       </div>
@@ -559,7 +559,7 @@ function NeedsRouteBody({
           disabled={busy}
           onClick={() => void route()}
         >
-          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
           {t("mode.dialog.routeAndUse")}
         </Button>
       </div>

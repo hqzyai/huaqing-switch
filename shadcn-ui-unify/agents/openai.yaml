@@ -1,0 +1,4 @@
+interface:
+  display_name: "shadcn UI 风格统一"
+  short_description: "统一 React 的 shadcn 组件、Lucide 图标、品牌入口与字体，保留逻辑和交互"
+  default_prompt: "使用 $shadcn-ui-unify，以 shadcn-neutral-v3 和 lucide-outline-v1 统一当前 React 项目，并按目标品牌接入 favicon 与控制台 Logo（HQZY 使用内置蓝色小标志 hqzy-logomark-v2，两个入口共用同一 SVG），保留业务逻辑和交互，完成迁移及验证并列明兼容例外。"

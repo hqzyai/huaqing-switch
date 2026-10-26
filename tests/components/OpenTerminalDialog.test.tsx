@@ -27,7 +27,7 @@ vi.mock("@/lib/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-const STORAGE_KEY = "cc-switch:terminal:recent-dirs";
+const STORAGE_KEY = "hq-model-switch:terminal:recent-dirs";
 const provider = {
   id: "p1",
   name: "Relay",

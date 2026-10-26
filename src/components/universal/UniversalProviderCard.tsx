@@ -106,7 +106,7 @@ export function UniversalProviderCard({
       <div className="mt-4 space-y-2">
         {/* Base URL */}
         <div className="flex items-center gap-2 text-sm">
-          <Globe className="h-3.5 w-3.5 text-fg-2" />
+          <Globe className="h-4 w-4 text-fg-2" />
           <span className="truncate text-fg-2">{provider.baseUrl || "-"}</span>
         </div>
 

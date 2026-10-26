@@ -244,8 +244,8 @@ describe("UsageDashboard", () => {
   });
 
   it("ignores a remembered tab or range it does not recognise", () => {
-    localStorage.setItem("cc-switch.usage.tab", "pricing");
-    localStorage.setItem("cc-switch.usage.rangePreset", "custom");
+    localStorage.setItem("hq-model-switch.usage.tab", "pricing");
+    localStorage.setItem("hq-model-switch.usage.rangePreset", "custom");
     renderDashboard();
 
     expect(
