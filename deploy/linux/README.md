@@ -31,7 +31,7 @@ docker compose -f deploy/linux/compose.yml up -d --no-build --wait
 
 把环境变量存入部署目录的私密环境文件，供重启和运维重复使用；不要把凭证本身写进环境变量或 Compose 文件。状态初始化会保留已有文件，拒绝不安全的权限或相同的两份凭证。服务默认在容器内监听 `8080` 管理接口、`17621` 推理接口，只有 Caddy 的 `28001` 绑定局域网；推理端口不发布到宿主。
 
-首次登录使用 `$HQ_SWITCH_STATE_DIR/private/admin-token` 中的管理凭证，通过 SSH 私下读取。服务使用 HttpOnly / Secure / SameSite Cookie、同源 CSRF 校验、登录限流和会话过期；网页不会存储管理凭证。`inference-token` 只供 HQHarness 网关读取，不交给网页或 worker，两种凭证不能互用。
+首次登录使用 `$HQ_SWITCH_STATE_DIR/private/admin-token` 中的管理凭证，通过 SSH 私下读取。新管理凭证格式为 `sk-` 加 64 位十六进制随机串（32 随机字节）；登录和 CLI Bearer 均须使用含 `sk-` 的完整字符串，不能去掉前缀。原有无前缀 64 位十六进制管理凭证仍兼容，重复运行初始化脚本会保留现有值，不自动轮换。机器推理凭证保持无前缀的 64 位十六进制格式；两种凭证的随机部分必须独立，不能仅通过增减 `sk-` 复用同一串随机值。服务使用 HttpOnly / Secure / SameSite Cookie、同源 CSRF 校验、登录限流和会话过期；网页不会存储管理凭证。`inference-token` 只供 HQHarness 网关读取，不交给网页或 worker，两种凭证不能互用。
 
 Caddy 使用内部 CA 为局域网地址签发证书。导出新建 `edge-tls` 卷的 `/data/caddy/pki/authorities/local/root.crt`，核对后导入访问设备的受信任根证书库；保留 CA 的私钥卷用于续签。TLS 验收应使用 `curl --cacert <root.crt>`，不能用跳过证书校验代替。已有企业证书时可在入口层替换为组织管理的 TLS 配置。
 

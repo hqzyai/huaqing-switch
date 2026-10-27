@@ -21,11 +21,9 @@ impl Config {
             |name: &str| std::env::var(name).with_context(|| format!("{name} is required"));
         let public_origin = origin(&required("HQ_SWITCH_PUBLIC_ORIGIN")?)?;
         let gateway_url = gateway_url(&required("HQ_SWITCH_GATEWAY_URL")?)?;
-        let admin_token = read_token(Path::new(&required("HQ_SWITCH_ADMIN_TOKEN_FILE")?))?;
+        let admin_token = read_admin_token(Path::new(&required("HQ_SWITCH_ADMIN_TOKEN_FILE")?))?;
         let inference_token = read_token(Path::new(&required("HQ_SWITCH_INFERENCE_TOKEN_FILE")?))?;
-        if admin_token == inference_token {
-            bail!("admin and inference tokens must be different");
-        }
+        validate_token_roles(&admin_token, &inference_token)?;
         let data_dir = PathBuf::from(required("HQ_SWITCH_DATA_DIR")?);
         let static_dir = PathBuf::from(required("HQ_SWITCH_STATIC_DIR")?);
         if !data_dir.is_absolute() || !static_dir.is_absolute() {
@@ -102,7 +100,30 @@ pub fn gateway_url(value: &str) -> Result<String> {
     }
     Ok(url.origin().ascii_serialization())
 }
+/// Compare random material only at configuration time; authentication keeps the entire token.
+pub(crate) fn validate_token_roles(admin: &str, inference: &str) -> Result<()> {
+    if admin
+        .strip_prefix("sk-")
+        .unwrap_or(admin)
+        .eq_ignore_ascii_case(inference)
+    {
+        bail!("admin and inference credentials must use independent random material");
+    }
+    Ok(())
+}
+
+/// Machine inference retains the original 64-hex credential contract.
 pub fn read_token(path: &Path) -> Result<String> {
+    read_credential(path, false)
+}
+
+/// Administration accepts the sk-64hex format and existing unprefixed credentials.
+/// The complete stored token is returned and participates in authentication.
+pub fn read_admin_token(path: &Path) -> Result<String> {
+    read_credential(path, true)
+}
+
+fn read_credential(path: &Path, admin: bool) -> Result<String> {
     use std::io::Read;
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
@@ -126,8 +147,16 @@ pub fn read_token(path: &Path) -> Result<String> {
     let mut token = String::new();
     file.take(129).read_to_string(&mut token)?;
     let token = token.trim_end_matches(['\r', '\n']);
-    if token.len() != 64 || !token.bytes().all(|c| c.is_ascii_hexdigit()) {
-        bail!("credential must contain exactly 64 hexadecimal characters");
+    let material = if admin {
+        token.strip_prefix("sk-").unwrap_or(token)
+    } else {
+        token
+    };
+    if material.len() != 64 || !material.bytes().all(|c| c.is_ascii_hexdigit()) {
+        if admin {
+            bail!("admin credential must be sk- followed by 64 hexadecimal characters or a legacy 64-hex token");
+        }
+        bail!("inference credential must contain exactly 64 hexadecimal characters");
     }
     Ok(token.to_string())
 }

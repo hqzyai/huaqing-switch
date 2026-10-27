@@ -28,13 +28,17 @@ for name in ("admin-token", "inference-token"):
             parser.error("existing credentials must be regular 0600 files")
         if metadata.st_uid != os.geteuid():
             parser.error("existing credentials must belong to the deployment user")
-        token = path.read_text().strip()
-        if len(token) != 64 or any(c not in "0123456789abcdefABCDEF" for c in token):
+        token = path.read_text().rstrip("\r\n")
+        material = token[3:] if name == "admin-token" and token.startswith("sk-") else token
+        if len(material) != 64 or any(c not in "0123456789abcdefABCDEF" for c in material):
             parser.error("existing credential format is invalid")
     else:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, "w") as output:
-            output.write(secrets.token_hex(32) + "\n")
-if (root / "private/admin-token").read_bytes() == (root / "private/inference-token").read_bytes():
-    parser.error("admin and inference credentials must differ")
+            prefix = "sk-" if name == "admin-token" else ""
+            output.write(prefix + secrets.token_hex(32) + "\n")
+admin_material = (root / "private/admin-token").read_text().rstrip("\r\n").removeprefix("sk-")
+inference_material = (root / "private/inference-token").read_text().rstrip("\r\n")
+if admin_material.lower() == inference_material.lower():
+    parser.error("admin and inference credentials must use independent random material")
 print("Private state initialized; existing credentials were preserved.")

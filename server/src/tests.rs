@@ -466,3 +466,153 @@ async fn actual_listener_preserves_usage_and_gracefully_stops() {
     assert_eq!(connections["connections"][0]["id"], id);
     upstream_task.abort();
 }
+
+#[test]
+fn administrator_prefix_is_role_specific_and_keeps_private_file_validation() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("admin-token");
+    std::fs::write(&path, "a".repeat(64)).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let legacy = "a".repeat(64);
+    assert!(config::validate_token_roles(&legacy, &"b".repeat(64)).is_ok());
+    assert!(config::validate_token_roles(&legacy, &legacy).is_err());
+    assert!(config::validate_token_roles(&format!("sk-{legacy}"), &legacy).is_err());
+    assert!(config::validate_token_roles(&format!("sk-{legacy}"), &legacy.to_uppercase()).is_err());
+    assert!(config::validate_token_roles(&format!("sk-{legacy}"), &"b".repeat(64)).is_ok());
+    assert_eq!(config::read_admin_token(&path).unwrap(), legacy);
+    assert_eq!(config::read_token(&path).unwrap(), legacy);
+    let prefixed = format!("sk-{}", "a".repeat(64));
+    std::fs::write(&path, format!("{prefixed}\n")).unwrap();
+    assert_eq!(config::read_admin_token(&path).unwrap(), prefixed);
+    assert!(
+        config::read_token(&path).is_err(),
+        "inference cannot accept an admin prefix"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(config::read_admin_token(&path).is_err());
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let link = directory.path().join("link");
+        std::os::unix::fs::symlink(&path, &link).unwrap();
+        assert!(config::read_admin_token(&link).is_err());
+    }
+    for invalid in [
+        format!("sk-{}", "a".repeat(63)),
+        format!("sk-{}", "a".repeat(65)),
+        format!("SK-{}", "a".repeat(64)),
+        format!("sk-{}g", "a".repeat(63)),
+        format!("sk-sk-{}", "a".repeat(64)),
+        format!(" sk-{}", "a".repeat(64)),
+        format!("sk-{} ", "a".repeat(64)),
+        format!("sk-{}\n{}", "a".repeat(32), "a".repeat(32)),
+        "a".repeat(129),
+    ] {
+        std::fs::write(&path, invalid).unwrap();
+        assert!(config::read_admin_token(&path).is_err());
+    }
+}
+
+#[tokio::test]
+async fn prefixed_admin_file_supports_real_http_login_without_stripping_or_inference_access() {
+    let (temp, fixture) = fixture();
+    let mut config = fixture.config.clone();
+    drop(fixture);
+    let token_file = temp.path().join("admin-token");
+    let suffix = "a".repeat(64);
+    let prefixed = format!("sk-{suffix}");
+    std::fs::write(&token_file, format!("{prefixed}\n")).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&token_file, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    config.admin_token = config::read_admin_token(&token_file).unwrap();
+    assert_eq!(config.admin_token, prefixed);
+    let app = App::open(config.clone()).unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let web = app.web();
+    let (stop, receive) = tokio::sync::oneshot::channel();
+    let web_task = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            web.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async {
+            let _ = receive.await;
+        })
+        .await
+        .unwrap();
+    });
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let login = |token: String| {
+        client
+            .post(format!("http://{address}/api/session"))
+            .header("origin", "https://switch.example")
+            .header("x-hq-csrf", "1")
+            .json(&json!({"token":token}))
+    };
+    assert_eq!(
+        login(suffix).send().await.unwrap().status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        login("c".repeat(64)).send().await.unwrap().status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        login(config.inference_token.clone())
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    let response = login(prefixed.clone()).send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(cookie.contains("HttpOnly; Secure; SameSite=Strict"));
+    let session: Value = client
+        .get(format!("http://{address}/api/session"))
+        .header("cookie", cookie.split(';').next().unwrap())
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(session["authenticated"], true);
+    assert_eq!(
+        app.web()
+            .oneshot(command_request("hq_get_connections", json!({}), &prefixed))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    let inference = Request::builder()
+        .uri("/hq/manifest")
+        .header("host", "switch.test:17621")
+        .header("authorization", format!("Bearer {prefixed}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        hq::gateway::router(app.gateway.clone())
+            .oneshot(inference)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    let _ = stop.send(());
+    web_task.await.unwrap();
+}
