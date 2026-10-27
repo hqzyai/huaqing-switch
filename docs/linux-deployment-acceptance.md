@@ -48,3 +48,17 @@ Switch 服务提交为 `9e94c83c13bac8d3681ee4ceb7c79a029ecaa479`，最终 Team 
 当前 Switch 镜像为 `huaqing-switch-server:0.1.1-linux-70d4ad1`，另三份镜像沿用此前交付。新版归档为 `images/huaqing-switch-linux-x86-4f155cd50c73e929d2472c338fcdf3ac67d92db7588a105d304ca97af030dbef-20261027145915.tar.gz`，大小 `585612926` 字节，SHA256 为 `4f155cd50c73e929d2472c338fcdf3ac67d92db7588a105d304ca97af030dbef`；gzip/tar、实际导入及四份镜像身份核对通过。旧归档保留作回滚记录。回滚不支持新格式的旧 Switch 镜像时，还须恢复受保护的旧管理凭证备份。
 
 真实管理凭证只在服务器私密文件中保存，用户要求的凭证回复单独完成；没有写入源码、镜像或交付清单。Linux 服务 CI 见 [40463221777](https://github.com/hqzyai/huaqing-switch/actions/runs/40463221777)。
+
+## HTTP 直连与 HTTPS 共用 28001（2026-10-27）
+
+按用户确认，HTTP 入口直接返回页面，不跳转到 HTTPS；已有 HTTPS 同时保留。实现提交为 `e7e86c9d4b6f8b32fcec281a575ee63d72efa883`。Nginx 1.30.6 在唯一公开的 `28001/tcp` 上区分明文和 TLS，分别交给 Caddy 的内部 HTTP / HTTPS site；Switch 两个管理监听器固定各自 Origin 和 Cookie 策略。HTTP 需要显式配置私网同 host / port 的 Origin / Bind，单独运行默认关闭；不依据客户端转发头选择会话策略。
+
+HTTPS 保留 `__Host-` / Secure Cookie；HTTP 使用独立的 HttpOnly / SameSite Cookie 和会话命名空间，两个方向改名重放均被拒绝。HTTP 按指定的受信任 LAN 方式使用，凭证会以明文传输；原有 LAN 防火墙范围和 TLS CA 均保留。Nginx 以非 root 用户运行，只有入口服务发布端口，Switch 管理和机器推理端口不发布。
+
+服务端 29 项测试、严格 Clippy、格式检查，以及真实主程序 13 项双入口验收通过。Linux 原生构建后，完整隔离部署的 19 项检查通过，包括证书链验证、HTTP 无跳转、登录、元数据、用量、跨 Origin 拒绝和双向会话隔离。生产 HTTP、HTTPS 的独立浏览器均完成登录、1 个连接、打开编辑后取消、用量、主题和登出验收；没有模型写入、付费调用、浏览器错误或凭证导出。Mac 通过局域网实测 HTTP 及使用原 CA 校验的 HTTPS 均返回成功。
+
+生产升级保留数据库、管理和推理凭证、版本映射及原有 2 个会话。验收时 HQHarness 的现有入口已为 `28003`，另保留 `18443`；本次只修改 Switch，未回退 HQHarness 的外部端口配置。Linux 服务 CI 见 [40475913868](https://github.com/hqzyai/huaqing-switch/actions/runs/40475913868)。
+
+本次生产只读审计 67 项通过，包含实际入口、镜像、会话、凭证隔离和自动启动配置。当前 Switch 镜像为 `huaqing-switch-server:0.1.1-linux-e7e86c9`；新增 Nginx 镜像后离线包包含五个已核验的 Linux amd64 镜像。归档为 `images/huaqing-switch-linux-x86-4478f43c082a344ef6551aa17a393c7d07d902cd04802706d73ff31164efab0b-20261027170127.tar.gz`，大小 `611626983` 字节，SHA256 为 `4478f43c082a344ef6551aa17a393c7d07d902cd04802706d73ff31164efab0b`。gzip/tar、实际导入及全部五份镜像身份核对通过；旧归档保留，私密状态不包含在镜像中。
+
+实现提交的[主 CI 40475914110](https://github.com/hqzyai/huaqing-switch/actions/runs/40475914110)六项作业及上述 Linux Server CI 均已成功。
