@@ -8,11 +8,37 @@ use sha2::Sha256;
 use std::{
     collections::HashMap,
     net::IpAddr,
-    sync::Mutex,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 pub const COOKIE: &str = "__Host-hq_switch_session";
+pub const HTTP_COOKIE: &str = "hq_switch_http_session";
+#[derive(Clone, Copy)]
+enum CookiePolicy {
+    Https,
+    Http,
+}
+impl CookiePolicy {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Https => COOKIE,
+            Self::Http => HTTP_COOKIE,
+        }
+    }
+    fn namespace(self) -> &'static str {
+        match self {
+            Self::Https => "https:",
+            Self::Http => "http:",
+        }
+    }
+    fn secure(self) -> &'static str {
+        match self {
+            Self::Https => "; Secure",
+            Self::Http => "",
+        }
+    }
+}
 const SESSION_AGE: Duration = Duration::from_secs(8 * 60 * 60);
 const MAX_SESSIONS: usize = 256;
 const MAX_LOGIN_CLIENTS: usize = 1024;
@@ -24,7 +50,8 @@ struct AuthState {
 }
 pub struct Auth {
     token: String,
-    state: Mutex<AuthState>,
+    state: Arc<Mutex<AuthState>>,
+    policy: CookiePolicy,
 }
 #[derive(Debug)]
 pub struct ApiError(pub StatusCode, pub &'static str);
@@ -37,8 +64,27 @@ impl Auth {
     pub fn new(token: String) -> Self {
         Self {
             token,
-            state: Mutex::new(AuthState::default()),
+            state: Arc::new(Mutex::new(AuthState::default())),
+            policy: CookiePolicy::Https,
         }
+    }
+    /// Both entry points share login limits and a total session cap, but not sessions.
+    pub fn http_variant(&self) -> Self {
+        Self {
+            token: self.token.clone(),
+            state: self.state.clone(),
+            policy: CookiePolicy::Http,
+        }
+    }
+    fn session_key(&self, id: &str) -> String {
+        format!("{}{id}", self.policy.namespace())
+    }
+    pub fn clear_cookie(&self) -> String {
+        format!(
+            "{}=; Path=/; HttpOnly{}; SameSite=Strict; Max-Age=0",
+            self.policy.name(),
+            self.policy.secure()
+        )
     }
     pub fn token_matches(&self, token: &str) -> bool {
         constant_time_equal(&self.token, token)
@@ -52,7 +98,7 @@ impl Auth {
                 .and_then(|s| s.strip_prefix("Bearer "))
                 .is_some_and(|t| self.token_matches(t));
         }
-        let Some(session) = cookie(headers) else {
+        let Some(session) = cookie(headers, self.policy.name()) else {
             return false;
         };
         let now = Instant::now();
@@ -62,7 +108,7 @@ impl Auth {
         state.sessions.retain(|_, expiry| *expiry > now);
         state
             .sessions
-            .get(session)
+            .get(&self.session_key(session))
             .is_some_and(|expiry| *expiry > now)
     }
     pub fn cli(&self, headers: &HeaderMap) -> bool {
@@ -121,20 +167,24 @@ impl Auth {
             uuid::Uuid::new_v4().simple(),
             uuid::Uuid::new_v4().simple()
         );
-        state.sessions.insert(session.clone(), now + SESSION_AGE);
+        state
+            .sessions
+            .insert(self.session_key(&session), now + SESSION_AGE);
         Ok(format!(
-            "{COOKIE}={session}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800"
+            "{}={session}; Path=/; HttpOnly{}; SameSite=Strict; Max-Age=28800",
+            self.policy.name(),
+            self.policy.secure()
         ))
     }
     pub fn logout(&self, headers: &HeaderMap) {
-        if let Some(session) = cookie(headers) {
+        if let Some(session) = cookie(headers, self.policy.name()) {
             if let Ok(mut state) = self.state.lock() {
-                state.sessions.remove(session);
+                state.sessions.remove(&self.session_key(session));
             }
         }
     }
 }
-fn cookie(headers: &HeaderMap) -> Option<&str> {
+fn cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     // Duplicate names are rejected rather than accepting ambiguous cookie parser precedence.
     let mut matches = headers
         .get_all("cookie")
@@ -142,7 +192,7 @@ fn cookie(headers: &HeaderMap) -> Option<&str> {
         .filter_map(|h| h.to_str().ok())
         .flat_map(|s| s.split(';'))
         .filter_map(|p| p.trim().split_once('='))
-        .filter(|(name, _)| *name == COOKIE)
+        .filter(|(candidate, _)| *candidate == name)
         .map(|(_, value)| value);
     let first = matches.next()?;
     if matches.next().is_some() || first.len() != 64 {
@@ -189,10 +239,6 @@ pub fn check_origin(
     }
     Ok(())
 }
-pub fn clear_cookie() -> String {
-    format!("{COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +304,93 @@ mod tests {
             format!("Bearer {}", "b".repeat(64)).parse().unwrap(),
         );
         assert!(!auth.authorized(&h));
+    }
+}
+
+#[cfg(test)]
+mod transport_tests {
+    use super::*;
+    #[test]
+    fn both_transports_share_limits_but_never_accept_renamed_session_ids() {
+        let token = "a".repeat(64);
+        let secure = Auth::new(token.clone());
+        let plain = secure.http_variant();
+        assert!(Arc::ptr_eq(&secure.state, &plain.state));
+        let peer = "127.0.0.1".parse().unwrap();
+        let secure_cookie = secure.login(peer, &token).unwrap();
+        let plain_cookie = plain.login(peer, &token).unwrap();
+        assert!(secure_cookie.starts_with(COOKIE));
+        assert!(secure_cookie.contains("; Secure;"));
+        assert!(plain_cookie.starts_with(HTTP_COOKIE));
+        assert!(!plain_cookie.contains("Secure"));
+        assert!(plain_cookie.contains("HttpOnly; SameSite=Strict"));
+        let secure_id = secure_cookie
+            .split(';')
+            .next()
+            .unwrap()
+            .split_once('=')
+            .unwrap()
+            .1;
+        let plain_id = plain_cookie
+            .split(';')
+            .next()
+            .unwrap()
+            .split_once('=')
+            .unwrap()
+            .1;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "cookie",
+            format!("{HTTP_COOKIE}={secure_id}").parse().unwrap(),
+        );
+        assert!(!plain.authorized(&headers));
+        headers.insert("cookie", format!("{COOKIE}={plain_id}").parse().unwrap());
+        assert!(!secure.authorized(&headers));
+        headers.insert(
+            "cookie",
+            plain_cookie.split(';').next().unwrap().parse().unwrap(),
+        );
+        assert!(plain.authorized(&headers));
+        plain.logout(&headers);
+        assert!(!plain.authorized(&headers));
+        headers.insert(
+            "cookie",
+            secure_cookie.split(';').next().unwrap().parse().unwrap(),
+        );
+        assert!(secure.authorized(&headers));
+        assert!(plain.clear_cookie().starts_with(HTTP_COOKIE));
+        assert!(!plain.clear_cookie().contains("Secure"));
+        assert!(secure.clear_cookie().contains("; Secure;"));
+        let secure = Auth::new(token.clone());
+        let plain = secure.http_variant();
+        for attempt in 0..10 {
+            let auth = if attempt % 2 == 0 { &secure } else { &plain };
+            assert_eq!(
+                auth.login(peer, "invalid").unwrap_err().0,
+                StatusCode::UNAUTHORIZED
+            );
+        }
+        assert_eq!(
+            plain.login(peer, &token).unwrap_err().0,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        assert_eq!(
+            secure.login(peer, &token).unwrap_err().0,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        let secure = Auth::new(token.clone());
+        let plain = secure.http_variant();
+        for id in 0..MAX_SESSIONS {
+            secure
+                .state
+                .lock()
+                .unwrap()
+                .sessions
+                .insert(format!("https:{id}"), Instant::now() + SESSION_AGE);
+        }
+        assert_eq!(
+            plain.login(peer, &token).unwrap_err().0,
+            StatusCode::SERVICE_UNAVAILABLE
+        );
     }
 }

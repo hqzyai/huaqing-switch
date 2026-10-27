@@ -31,5 +31,5 @@ WORKDIR /app
 COPY --from=backend /source/server/target/release/huaqing-switch-server /app/huaqing-switch-server
 COPY --from=web /source/dist-server /app/dist-server
 COPY LICENSE /app/LICENSE
-EXPOSE 8080 17621
+EXPOSE 8080 8081 17621
 ENTRYPOINT ["/app/huaqing-switch-server"]

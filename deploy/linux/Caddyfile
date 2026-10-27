@@ -1,26 +1,35 @@
 {
-    admin off
-    auto_https disable_redirects
-    persist_config off
-    skip_install_trust
-    default_sni {$HQ_SWITCH_LAN_ADDRESS}
-    servers {
-        protocols h1 h2
-    }
-    pki {
-        ca local {
-            name "HQZY Switch LAN"
-            root_cn "HQZY Switch LAN Root CA"
-            intermediate_cn "HQZY Switch LAN Intermediate CA"
-        }
-    }
+	admin off
+	auto_https disable_redirects
+	persist_config off
+	skip_install_trust
+	default_sni {$HQ_SWITCH_LAN_ADDRESS}
+	servers {
+		protocols h1 h2
+	}
+	pki {
+		ca local {
+			name "HQZY Switch LAN"
+			root_cn "HQZY Switch LAN Root CA"
+			intermediate_cn "HQZY Switch LAN Intermediate CA"
+		}
+	}
 }
 
-https://{$HQ_SWITCH_LAN_ADDRESS}:28001 {
-    tls internal
-    encode gzip
-    request_body {
-        max_size 64KB
-    }
-    reverse_proxy switch:8080
+https://{$HQ_SWITCH_LAN_ADDRESS}:8443 {
+	tls internal
+	encode gzip
+	request_body {
+		max_size 64KB
+	}
+	reverse_proxy switch:8080
+}
+
+# Explicit LAN HTTP entry: do not redirect and do not weaken HTTPS cookies.
+http://{$HQ_SWITCH_LAN_ADDRESS}:8081 {
+	encode gzip
+	request_body {
+		max_size 64KB
+	}
+	reverse_proxy switch:8081
 }

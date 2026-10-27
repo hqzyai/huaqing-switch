@@ -59,6 +59,15 @@ impl App {
     pub async fn shutdown(&self) {
         self.gateway.shutdown().await;
     }
+    /// Enabled only by the explicit HTTP origin/listener pair in deployment config.
+    pub fn http_web(&self) -> Option<Router> {
+        let http = self.config.http.as_ref()?;
+        let mut app = self.clone();
+        app.config.public_origin = http.origin.clone();
+        app.auth = Arc::new(self.auth.http_variant());
+        Some(app.web())
+    }
+    /// TLS-facing internal listener: its policy never derives from forwarded headers.
     pub fn web(&self) -> Router {
         Router::new()
             .route("/healthz", get(health))
@@ -131,7 +140,7 @@ async fn logout(State(app): State<App>, headers: HeaderMap) -> Result<Response, 
     let mut response = Json(json!({"authenticated":false})).into_response();
     response.headers_mut().insert(
         "set-cookie",
-        HeaderValue::from_str(&auth::clear_cookie()).expect("static cookie"),
+        HeaderValue::from_str(&app.auth.clear_cookie()).expect("static cookie"),
     );
     Ok(response)
 }

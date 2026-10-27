@@ -16,6 +16,7 @@ fn fixture() -> (tempfile::TempDir, App) {
         gateway_bind: "127.0.0.1:17621".parse().unwrap(),
         gateway_url: "http://switch.test:17621".into(),
         public_origin: "https://switch.example".into(),
+        http: None,
         data_dir: temp.path().into(),
         static_dir: temp.path().into(),
         admin_token: "a".repeat(64),
@@ -615,4 +616,281 @@ async fn prefixed_admin_file_supports_real_http_login_without_stripping_or_infer
     );
     let _ = stop.send(());
     web_task.await.unwrap();
+}
+
+#[test]
+fn optional_plaintext_management_requires_same_private_host_port_and_explicit_pair() {
+    let public = "https://192.168.2.11:28001";
+    assert!(config::http_management(public, None, None)
+        .unwrap()
+        .is_none());
+    assert!(config::http_management(public, Some("http://192.168.2.11:28001"), None).is_err());
+    assert!(config::http_management(public, None, Some("0.0.0.0:8081")).is_err());
+    let accepted = config::http_management(
+        public,
+        Some("http://192.168.2.11:28001/"),
+        Some("0.0.0.0:8081"),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(accepted.origin, "http://192.168.2.11:28001");
+    assert_eq!(accepted.bind, "0.0.0.0:8081".parse::<SocketAddr>().unwrap());
+    for host in [
+        "10.2.3.4",
+        "172.16.0.1",
+        "192.168.2.11",
+        "127.0.0.1",
+        "localhost",
+        "[::1]",
+    ] {
+        assert!(config::http_management(
+            &format!("https://{host}:28001"),
+            Some(&format!("http://{host}:28001")),
+            Some("0.0.0.0:8081")
+        )
+        .is_ok());
+    }
+    for host in [
+        "8.8.8.8",
+        "172.32.0.1",
+        "169.254.0.1",
+        "0.0.0.0",
+        "100.64.0.1",
+        "public.example",
+        "[fd00::1]",
+    ] {
+        assert!(config::http_management(
+            &format!("https://{host}:28001"),
+            Some(&format!("http://{host}:28001")),
+            Some("0.0.0.0:8081")
+        )
+        .is_err());
+    }
+    for invalid in [
+        "http://192.168.2.12:28001",
+        "http://192.168.2.11:28002",
+        "https://192.168.2.11:28001",
+        "http://192.168.2.11:28001/path",
+        "http://192.168.2.11:28001/?query=1",
+        "http://192.168.2.11:28001/#fragment",
+        "http://user:pass@192.168.2.11:28001",
+    ] {
+        assert!(config::http_management(public, Some(invalid), Some("0.0.0.0:8081")).is_err());
+    }
+    assert!(
+        config::http_management(public, Some("http://192.168.2.11:28001"), Some("0.0.0.0:0"))
+            .is_err()
+    );
+    assert!(config::http_management(
+        "http://127.0.0.1:28001",
+        Some("http://127.0.0.1:28001"),
+        Some("0.0.0.0:8081")
+    )
+    .is_err());
+}
+
+#[tokio::test]
+async fn two_real_management_listeners_keep_cookie_origin_csrf_and_logout_isolated() {
+    let (_temp, fixture) = fixture();
+    assert!(
+        fixture.http_web().is_none(),
+        "HTTP is disabled unless explicitly configured"
+    );
+    let mut config = fixture.config.clone();
+    config.public_origin = "https://127.0.0.1:28001".into();
+    config.http = config::http_management(
+        &config.public_origin,
+        Some("http://127.0.0.1:28001"),
+        Some("127.0.0.1:8081"),
+    )
+    .unwrap();
+    drop(fixture);
+    let app = App::open(config.clone()).unwrap();
+    let secure_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let http_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let secure_address = secure_listener.local_addr().unwrap();
+    let http_address = http_listener.local_addr().unwrap();
+    let (stop, receive) = tokio::sync::watch::channel(false);
+    let mut tasks = tokio::task::JoinSet::new();
+    for (listener, web) in [
+        (secure_listener, app.web()),
+        (http_listener, app.http_web().unwrap()),
+    ] {
+        let mut receive = receive.clone();
+        tasks.spawn(async move {
+            axum::serve(
+                listener,
+                web.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .with_graceful_shutdown(async move {
+                let _ = receive.changed().await;
+            })
+            .await
+            .unwrap();
+        });
+    }
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let secure_origin = config.public_origin;
+    let http_origin = config.http.unwrap().origin;
+    let login = |address: SocketAddr, origin: &str| {
+        client
+            .post(format!("http://{address}/api/session"))
+            .header("origin", origin)
+            .header("x-hq-csrf", "1")
+            .header(
+                "x-forwarded-proto",
+                if origin.starts_with("https:") {
+                    "http"
+                } else {
+                    "https"
+                },
+            )
+            .json(&json!({"token":config.admin_token}))
+    };
+    let secure_response = login(secure_address, &secure_origin).send().await.unwrap();
+    assert_eq!(secure_response.status(), StatusCode::OK);
+    let secure_cookie = secure_response.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(secure_cookie.starts_with(auth::COOKIE));
+    assert!(secure_cookie.contains("; Secure;"));
+    let http_response = login(http_address, &http_origin).send().await.unwrap();
+    assert_eq!(http_response.status(), StatusCode::OK);
+    let http_cookie = http_response.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(http_cookie.starts_with(auth::HTTP_COOKIE));
+    assert!(!http_cookie.contains("Secure"));
+    assert!(http_cookie.contains("HttpOnly; SameSite=Strict"));
+    let secure_pair = secure_cookie.split(';').next().unwrap();
+    let http_pair = http_cookie.split(';').next().unwrap();
+    let secure_id = secure_pair.split_once('=').unwrap().1;
+    let http_id = http_pair.split_once('=').unwrap().1;
+    let command = |address: SocketAddr, origin: &str, cookie: &str, name: &str| {
+        client
+            .post(format!("http://{address}/api/commands/{name}"))
+            .header("origin", origin)
+            .header("x-hq-csrf", "1")
+            .header("cookie", cookie)
+            .json(&json!({}))
+    };
+    for (address, origin, cookie) in [
+        (secure_address, secure_origin.as_str(), secure_pair),
+        (http_address, http_origin.as_str(), http_pair),
+    ] {
+        let response = command(address, origin, cookie, "hq_get_connections")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json::<Value>().await.unwrap()["connections"],
+            json!([])
+        );
+        let response = command(address, origin, cookie, "hq_get_usage")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json::<Value>().await.unwrap()["summary"]["requests"],
+            0
+        );
+        let status = client
+            .get(format!("http://{address}/api/session"))
+            .header("cookie", cookie)
+            .send()
+            .await
+            .unwrap()
+            .json::<Value>()
+            .await
+            .unwrap();
+        assert_eq!(status["authenticated"], true);
+    }
+    for (address, origin, cookie) in [
+        (
+            secure_address,
+            secure_origin.as_str(),
+            http_pair.to_string(),
+        ),
+        (http_address, http_origin.as_str(), secure_pair.to_string()),
+        (
+            secure_address,
+            secure_origin.as_str(),
+            format!("{}={http_id}", auth::COOKIE),
+        ),
+        (
+            http_address,
+            http_origin.as_str(),
+            format!("{}={secure_id}", auth::HTTP_COOKIE),
+        ),
+    ] {
+        assert_eq!(
+            command(address, origin, &cookie, "hq_get_connections")
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    for (address, wrong_origin, cookie) in [
+        (secure_address, http_origin.as_str(), secure_pair),
+        (http_address, secure_origin.as_str(), http_pair),
+    ] {
+        assert_eq!(
+            command(address, wrong_origin, cookie, "hq_get_connections")
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+    }
+    let missing_csrf = client
+        .post(format!(
+            "http://{http_address}/api/commands/hq_get_connections"
+        ))
+        .header("origin", &http_origin)
+        .header("cookie", http_pair)
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(missing_csrf.status(), StatusCode::FORBIDDEN);
+    let logout = client
+        .delete(format!("http://{http_address}/api/session"))
+        .header("origin", &http_origin)
+        .header("x-hq-csrf", "1")
+        .header("cookie", http_pair)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(logout.status(), StatusCode::OK);
+    let cleared = logout.headers()["set-cookie"].to_str().unwrap();
+    assert!(cleared.starts_with(auth::HTTP_COOKIE));
+    assert!(!cleared.contains("Secure"));
+    assert!(cleared.contains("Max-Age=0"));
+    assert_eq!(
+        command(http_address, &http_origin, http_pair, "hq_get_usage")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        command(secure_address, &secure_origin, secure_pair, "hq_get_usage")
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    let _ = stop.send(true);
+    while let Some(result) = tasks.join_next().await {
+        result.unwrap();
+    }
 }

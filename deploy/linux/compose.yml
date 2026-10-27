@@ -19,6 +19,8 @@ services:
       HQ_SWITCH_GATEWAY_BIND: 0.0.0.0:17621
       HQ_SWITCH_GATEWAY_URL: http://huaqing-switch:17621
       HQ_SWITCH_PUBLIC_ORIGIN: https://${HQ_SWITCH_LAN_ADDRESS:?Set the LAN address}:28001
+      HQ_SWITCH_HTTP_ORIGIN: http://${HQ_SWITCH_LAN_ADDRESS}:28001
+      HQ_SWITCH_HTTP_BIND: 0.0.0.0:8081
       HQ_SWITCH_DATA_DIR: /data
       HQ_SWITCH_STATIC_DIR: /app/dist-server
       HQ_SWITCH_ADMIN_TOKEN_FILE: /run/secrets/admin-token
@@ -54,8 +56,6 @@ services:
       - /tmp:rw,nosuid,nodev,size=16777216
     environment:
       HQ_SWITCH_LAN_ADDRESS: ${HQ_SWITCH_LAN_ADDRESS}
-    ports:
-      - ${HQ_SWITCH_LAN_ADDRESS}:28001:28001
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - edge-tls:/data
@@ -66,10 +66,44 @@ services:
     pids_limit: 64
     mem_limit: 128m
     cpus: 0.5
+  ingress:
+    # Imported from the pinned official linux/amd64 manifest in README.md.
+    # A stable local tag survives docker save/load for offline delivery.
+    image: huaqing-switch-ingress:nginx-1.30.6-84ed8c0dd296
+    pull_policy: never
+    restart: unless-stopped
+    # No writable state or privileged ports: start Nginx as a non-root user.
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    entrypoint: [nginx]
+    command: [-g, "daemon off;"]
+    environment:
+      HQ_SWITCH_LAN_ADDRESS: ${HQ_SWITCH_LAN_ADDRESS}
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16777216
+    ports:
+      - ${HQ_SWITCH_LAN_ADDRESS}:28001:28001
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks: [front]
+    depends_on:
+      edge:
+        condition: service_started
+    pids_limit: 64
+    mem_limit: 64m
+    cpus: 0.5
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null --header "Host: $$HQ_SWITCH_LAN_ADDRESS" http://127.0.0.1:28001/healthz']
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 networks:
   front:
     # Rootless Docker does not publish host ports for a container attached only
-    # to an internal network. This dedicated bridge exposes only edge:28001.
+    # to an internal network. This bridge exposes only ingress:28001.
     internal: false
   harness:
     name: ${HQ_HARNESS_CONTROL_NETWORK:-huaqing-team-control}

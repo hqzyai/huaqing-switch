@@ -5,11 +5,18 @@ use std::{
 };
 
 #[derive(Clone)]
+pub struct HttpManagement {
+    pub bind: SocketAddr,
+    pub origin: String,
+}
+
+#[derive(Clone)]
 pub struct Config {
     pub web_bind: SocketAddr,
     pub gateway_bind: SocketAddr,
     pub gateway_url: String,
     pub public_origin: String,
+    pub http: Option<HttpManagement>,
     pub data_dir: PathBuf,
     pub static_dir: PathBuf,
     pub admin_token: String,
@@ -50,11 +57,24 @@ impl Config {
                 .parse()
                 .with_context(|| format!("invalid {name}"))
         };
+        let optional = |name: &str| -> Result<Option<String>> {
+            match std::env::var(name) {
+                Ok(value) => Ok(Some(value)),
+                Err(std::env::VarError::NotPresent) => Ok(None),
+                Err(_) => bail!("{name} must be UTF-8"),
+            }
+        };
+        let http = http_management(
+            &public_origin,
+            optional("HQ_SWITCH_HTTP_ORIGIN")?.as_deref(),
+            optional("HQ_SWITCH_HTTP_BIND")?.as_deref(),
+        )?;
         let config = Self {
             web_bind: bind("HQ_SWITCH_WEB_BIND", "0.0.0.0:8080")?,
             gateway_bind: bind("HQ_SWITCH_GATEWAY_BIND", "0.0.0.0:17621")?,
             gateway_url,
             public_origin,
+            http,
             data_dir,
             static_dir,
             admin_token,
@@ -63,12 +83,58 @@ impl Config {
         if config.web_bind.port() == 0
             || config.gateway_bind.port() == 0
             || config.web_bind == config.gateway_bind
+            || config.http.as_ref().is_some_and(|http| {
+                http.bind == config.web_bind || http.bind == config.gateway_bind
+            })
         {
             bail!("web and inference listeners must use distinct nonzero addresses");
         }
         Ok(config)
     }
 }
+/// Explicitly enable one plaintext LAN management listener; its origin must share
+/// the HTTPS entry point's host and port. Authentication policy is listener-owned.
+pub(crate) fn http_management(
+    public: &str,
+    http: Option<&str>,
+    bind: Option<&str>,
+) -> Result<Option<HttpManagement>> {
+    let (http, bind) = match (http, bind) {
+        (None, None) => return Ok(None),
+        (Some(http), Some(bind)) => (http, bind),
+        _ => bail!("HQ_SWITCH_HTTP_ORIGIN and HQ_SWITCH_HTTP_BIND must be configured together"),
+    };
+    let public = url::Url::parse(public).context("invalid HTTPS public origin")?;
+    let origin = url::Url::parse(http).context("invalid HTTP management origin")?;
+    let private_host = match origin.host() {
+        Some(url::Host::Ipv4(ip)) => ip.is_private() || ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        Some(url::Host::Domain(host)) => host == "localhost",
+        None => false,
+    };
+    if public.scheme() != "https"
+        || origin.scheme() != "http"
+        || !private_host
+        || origin.host() != public.host()
+        || origin.port_or_known_default() != public.port_or_known_default()
+        || !origin.username().is_empty()
+        || origin.password().is_some()
+        || origin.path() != "/"
+        || origin.query().is_some()
+        || origin.fragment().is_some()
+    {
+        bail!("HTTP management must be a private IPv4/loopback origin matching the HTTPS host and port");
+    }
+    let bind: SocketAddr = bind.parse().context("invalid HQ_SWITCH_HTTP_BIND")?;
+    if bind.port() == 0 {
+        bail!("HTTP management listener requires a nonzero port");
+    }
+    Ok(Some(HttpManagement {
+        bind,
+        origin: origin.origin().ascii_serialization(),
+    }))
+}
+
 pub fn origin(value: &str) -> Result<String> {
     let url = url::Url::parse(value).context("invalid public origin")?;
     let local = url.host_str().is_some_and(|h| {
