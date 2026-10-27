@@ -1,0 +1,19 @@
+[Unit]
+Description=Huaqing Switch Linux service
+Requires=huaqing-docker.service
+After=huaqing-docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=DOCKER_HOST=unix://%t/huaqing-docker/docker.sock
+WorkingDirectory=/home/ubuntu/Workspace/huaqing-switch
+ExecStartPre=/usr/bin/test -S %t/huaqing-docker/docker.sock
+ExecStartPre=/home/ubuntu/Workspace/huaqing-switch/compose config --quiet
+ExecStart=/home/ubuntu/Workspace/huaqing-switch/compose up -d --no-build --wait --wait-timeout 120
+ExecStop=/home/ubuntu/Workspace/huaqing-switch/compose stop --timeout 330
+TimeoutStartSec=480
+TimeoutStopSec=360
+
+[Install]
+WantedBy=default.target

@@ -62,3 +62,9 @@ HTTPS 保留 `__Host-` / Secure Cookie；HTTP 使用独立的 HttpOnly / SameSit
 本次生产只读审计 67 项通过，包含实际入口、镜像、会话、凭证隔离和自动启动配置。当前 Switch 镜像为 `huaqing-switch-server:0.1.1-linux-e7e86c9`；新增 Nginx 镜像后离线包包含五个已核验的 Linux amd64 镜像。归档为 `images/huaqing-switch-linux-x86-4478f43c082a344ef6551aa17a393c7d07d902cd04802706d73ff31164efab0b-20261027170127.tar.gz`，大小 `611626983` 字节，SHA256 为 `4478f43c082a344ef6551aa17a393c7d07d902cd04802706d73ff31164efab0b`。gzip/tar、实际导入及全部五份镜像身份核对通过；旧归档保留，私密状态不包含在镜像中。
 
 实现提交的[主 CI 40475914110](https://github.com/hqzyai/huaqing-switch/actions/runs/40475914110)六项作业及上述 Linux Server CI 均已成功。
+
+## 部署根目录统一（2026-10-27）
+
+部署入口统一为 `/home/ubuntu/Workspace/huaqing-switch`：systemd 使用该工作目录，顶层配置链接到当前版本，并通过 `./compose` 运维。入口捕获当前物理版本后从同一版本读取 Compose / 环境文件，固定专用 rootless socket 和项目名，保持配置哈希及挂载路径。旧顶层配置和启动单元已备份，原有 `releases/current/state` 结构保留。
+
+实机 13 项核对通过：配置和服务哈希、容器 ID / 启动时间 / 镜像 / 重启计数均不变，启动单元保持启用，私密文件权限和凭证未变，HTTP / 严格 CA 验证的 HTTPS 均正常且没有跳转。仅执行 daemon-reload 和不重建的 Compose 验证，未重启服务、移动数据库或重建镜像。镜像继续使用用户此前指定的 `/home/ubuntu/Workspace/images/` 及既有文件名、内容与 SHA256；交付清单另外记录部署根目录和配置包。

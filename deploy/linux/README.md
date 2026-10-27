@@ -14,6 +14,22 @@ docker build --platform linux/amd64 \
 
 Node、Rust 与 Debian 基础镜像固定到摘要，前后端分别使用锁文件。Rust 构建不需要 GTK/WebKit。`Dockerfile.artifact` 接收已验收的 `huaqing-switch-server`、`dist-server/` 和 `LICENSE`；二进制必须来自同一源码提交，并在 Debian bookworm 或更老的兼容 glibc 上构建。Linux Server CI 使用 Ubuntu 22.04，产物附源码提交与逐文件 SHA256。不要直接将 macOS/Windows 或较新 glibc 的二进制装入运行镜像。
 
+## 部署目录
+
+部署根目录统一为 `/home/ubuntu/Workspace/huaqing-switch`。运维命令和 `huaqing-switch.service` 都从这个目录运行：
+
+```sh
+cd /home/ubuntu/Workspace/huaqing-switch
+./compose config --quiet
+./compose ps
+```
+
+`current` 指向 `releases/<version>`；顶层 `.env`、`compose.yml`、`Caddyfile`、`nginx.conf` 以相对符号链接指向 `current/` 中同名文件，确保直接进入根目录时读取当前版本。把本目录的 `compose` 可执行入口安装到部署根目录；它固定专用 rootless socket，并将 Compose 的项目目录解析到当前版本的物理路径，保留相对挂载路径和配置哈希，避免仅改变入口目录就触发容器重建。运维统一使用 `./compose`。`state/` 保存私密数据，`backups/`、`logs/`、`acceptance/` 分别保存回滚快照、运维日志和验收记录。升级保留根目录与状态目录，原子切换 `current` 后从根目录运行入口；不要手改历史版本文件。Nginx 配置需为容器 UID 1000 可读（0644），凭证保持 0600。
+
+用户级启动单元使用本目录的 `huaqing-switch.service` 模板，安装到 `~/.config/systemd/user/huaqing-switch.service` 后执行 `systemctl --user daemon-reload` 和 `systemctl --user enable huaqing-switch.service`。已有运行容器仅调整入口路径时无需重启；先比较入口解析后的配置和当前容器配置哈希，再使用 `./compose up -d --no-build --no-recreate --wait` 验证，确认容器 ID 和启动时间不变。首次启动或版本升级使用 `./compose up -d --no-build --wait`。单元启动超时覆盖 330 秒停止宽限与 120 秒健康等待。
+
+镜像归档仍使用下文指定的 `/home/ubuntu/Workspace/images/`，其位置与部署根目录分别记录。
+
 ## 运行
 
 本部署与 HQHarness 共用专用的 **rootless Docker**，通过已有 `huaqing-team-control` 内部网络连接。普通宿主 Docker 的管理套接字不挂载到 Switch。以下变量由部署者填写，使用实际已核验的镜像标签：

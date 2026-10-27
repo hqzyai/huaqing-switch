@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+deploy_dir=/home/ubuntu/Workspace/huaqing-switch
+release=$(readlink -f -- "$deploy_dir/current")
+case "$release" in
+    "$deploy_dir"/releases/*) ;;
+    *) echo "current must resolve inside the deployment releases directory" >&2; exit 1 ;;
+esac
+
+export DOCKER_HOST="unix:///run/user/$(id -u)/huaqing-docker/docker.sock"
+exec /usr/bin/docker compose --project-directory "$release" \
+    --project-name huaqing-switch --env-file "$release/.env" \
+    -f "$release/compose.yml" "$@"
