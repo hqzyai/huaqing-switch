@@ -1,6 +1,6 @@
 # Huaqing Switch 与 HQHarness 接入
 
-2026-10-26 更新。记录当前实现、可复现验证方式及 Windows 106 服务器的验收范围。
+2026-10-27 更新。记录当前实现、可复现验证方式及 Windows 106 服务器的验收范围。
 
 ## 产品与使用
 
@@ -73,7 +73,7 @@ npm run build
 
 联调脚本要求 Node.js 24 或更高版本，与 HQHarness 开发要求一致；直接使用 Node 内置 SQLite，不需要 Python 或外部 sqlite3。默认二进制为当前平台的 Tauri debug 产物：Windows/Linux 使用 `src-tauri/target/debug/hq-model-switch[.exe]`，macOS 使用该目录中 bundle 内的可执行文件。使用 release、自定义 `CARGO_TARGET_DIR` 或已安装应用时传入 `--binary`。源码模式的 HQHarness 路径须包含已安装依赖、现有 Switch 插件和 `build/harness-node-entry.mjs`。路径含空格时使用 shell 对应的引号。
 
-已安装 HQHarness 使用 `--harness-exe` 与 `--harness-app-root`，后者必须指向同一安装目录中的 `resources/app.asar`。脚本由该 EXE 的 Electron Node 模式加载 ASAR 内的真实 Harness/Pi 依赖及 Switch 插件，并记录实际 EXE、ASAR、Desktop、Electron 和 Node 版本；无需在目标服务器检出 HQHarness 源码或安装 npm 依赖。两种 HQHarness 输入模式不能混用。
+已安装 HQHarness 使用 `--harness-exe` 与 `--harness-app-root`，后者必须指向同一安装目录中的 `resources/app.asar`。脚本由该 EXE 的 Electron Node 模式加载 ASAR 内的真实 Harness/Pi 依赖及 Switch 插件，并记录实际 EXE/ASAR 路径，以及 Desktop、Electron 和 Node 版本；无需在目标服务器检出 HQHarness 源码或安装 npm 依赖。两种 HQHarness 输入模式不能混用。
 
 以下命令在 Switch 仓库内运行，使用生产应用的准确 HKCU 卸载键定位 HQHarness 0.1.8，不遍历磁盘或读取用户配置。执行前须通过托盘“退出”正常关闭 Switch，避免固定端口和单实例冲突。
 
@@ -109,8 +109,8 @@ node scripts/verify-harness-connector.mjs --harness-exe "$harnessExe" --harness-
 
 | 项目 | 来源与验收状态 |
 | --- | --- |
-| Switch 当前 `dev` | `6eed6592406fdf2f8271c8bda685f5e53c783748`；[主 CI 40302472033](https://github.com/hqzyai/huaqing-switch/actions/runs/40302472033) 的前端、Linux/Windows/macOS 后端及 WSL2 检查通过。 |
-| Switch 0.1.0 MSI | 源码 `136609ac3d3a4d6b64af18b283864a4f46a6973d`；[Windows 打包 40292921395](https://github.com/hqzyai/huaqing-switch/actions/runs/40292921395) 成功。到当前 `dev` 仅增加联调验证脚本及 golden 测试修正，产品源码、依赖、资源和安装器配置相同。 |
+| Switch 已验收产品代码 | `6eed6592406fdf2f8271c8bda685f5e53c783748`；[主 CI 40302472033](https://github.com/hqzyai/huaqing-switch/actions/runs/40302472033) 的前端、Linux/Windows/macOS 后端及 WSL2 检查通过。后续 `0af7273` 仅更新验收文档。 |
+| Switch 0.1.0 MSI | 源码 `136609ac3d3a4d6b64af18b283864a4f46a6973d`；[Windows 打包 40292921395](https://github.com/hqzyai/huaqing-switch/actions/runs/40292921395) 成功。到上述产品代码仅增加联调验证脚本及 golden 测试修正，产品源码、依赖、资源和安装器配置相同。 |
 | HQHarness 当前代码 | `61788d465e95d8480fc16a59727e955461c487f7`；[Windows 完整验收 CI 40315304291](https://github.com/jiawenyao401/HQHarness/actions/runs/40315304291) 的构建、测试、原生验证和草稿交付核验通过。 |
 | 106 已安装 HQHarness 0.1.8 | 源码 `c26c526b491006db8bbb462011c44ed31aac95e4`；生产应用 ID 为 `app.hqharness.desktop`。到 `61788d4` 只改草稿交付脚本与对应测试，产品输入树相同。 |
 
@@ -122,8 +122,13 @@ node scripts/verify-harness-connector.mjs --harness-exe "$harnessExe" --harness-
 - **MSI 卸载及重装**：卸载和重装均退出 0。共享 Programs 目录中的任务专用哨兵文件内容保持不变，重装后 EXE 哈希与首次安装一致。证据为本地 `validation/windows-transfer/switch-uninstall-acceptance.json`；该回归验证此前危险的共享父目录通配删除规则已移除。
 - **HQHarness 安装后身份**：NSIS 安装退出 0，已安装 EXE 为 0.1.8.0，ASAR 内包版本为 0.1.8；按精确生产注册表键及 `HQHarness 0.1.8` / `0.1.8` 的注册名和版本核验，Switch 插件与主进程来源策略存在。安装后的独立核验读取固定 ASAR 文件，不运行桌面主入口或打开用户配置。证据为本地 `validation/windows-transfer/harness-qualified.json`。
 - **已安装 EXE + ASAR 核心联调**：使用 Windows x64 Node 24.10.0 驱动已安装 Switch，与 HQHarness 自带 Electron 44.7.0 / Node 24.21.0 的实际 ASAR 依赖联调。三协议流式工具调用、鉴权与重定向保护、取消、凭证轮换、默认切换保留旧连接、旧版本拒绝、旧供应商拦截、离线及重启均通过，验证器退出 0，未遗留本轮子进程。证据为本地 `validation/windows-transfer/installed-acceptance.json`。
+- **已安装应用的新对话**：从桌面正常启动 HQHarness，原有会话保留，新建会话自动选择 Switch 默认连接；经实际对话输入和发送，回复正文出现 `CHAT_PASS`。操作截图为本地 `validation/windows-transfer/gui-chat-106.png`。
+- **当前会话的 browser 工具往返**：在同一会话接受原生浏览器授权后，工具驱动真实本机浏览器访问本轮拥有的测试页，页面收到 1 次 GET；工具返回在同一调用 ID 下包含当前运行生成的随机无障碍树标记，随后对话正文出现 `BROWSER_PASS`。操作截图为本地 `validation/windows-transfer/gui-browser-page-106.png` 与 `gui-browser-result-106.png`。
+- **本轮结束操作**：通过 Switch 界面删除临时连接，连接列表恢复为空；通过 HQHarness“应用 > 退出”正常关闭客户端及其独立浏览器，再从托盘正常退出 Switch，屏幕键盘已关闭。本轮 GUI fixture 已停止，报告中 `stopped=true`。最终实机只读检查确认 17621/18766 端口已释放、HQHarness 与 Switch 进程已退出、fixture 状态文件不存在，两端已安装 EXE 和生产注册信息保留，版本仍为 0.1.0 / 0.1.8.0；本地 `validation/windows-transfer/cleanup-acceptance.json` 中 `passed=true`。
 
-上述核心联调使用独立临时数据目录和确定性本地 API fixture，不调用付费模型，也不构成 GUI 自动化验收。另已从桌面快捷方式正常启动 HQHarness，确认原有会话保留、新建会话自动选择 Switch 默认连接，并由界面发送测试消息、收到本地 fixture 回复。**严格 GUI 标记和 browser 工具往返仍待完成**：测试脚本已适配 Harness 自动追加的环境上下文，但操作端 Mac 锁屏暂停了 106 界面操作，未将本机脚本回归或 CI 工具检查记为 106 GUI 通过。真实供应商、computer 工具的 106 GUI 操作、正式签名/公证、公开发行服务及实际课堂性能继续单独验收。
+本轮 GUI 结果记录在本地 `validation/windows-transfer/gui-acceptance.json`：`passed=true`，带鉴权模型请求、文本往返、browser 工具提供、页面访问、无障碍观察核验和最终回复共 6 项均通过；记录 5 次模型请求，鉴权拒绝、模型拒绝、无效请求及工具失败计数均为 0。该报告与上述三张操作截图共同支持已安装应用的新对话和 browser 路径验收。
+
+协议回归和 GUI 联调均使用确定性本地 API fixture；`paidModelCall=false`，安装后的产品包未修改，两个验收包仍未签名。本轮未执行 computer 工具的 106 GUI 操作，也不据此认定真实供应商调用、正式签名/公证、公开发行服务或实际课堂性能已通过。
 
 ### 此前的 macOS 验证包
 
