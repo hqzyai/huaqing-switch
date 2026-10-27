@@ -1,7 +1,7 @@
 {
   "productName": "Huaqing Switch",
   "packageName": "hq-model-switch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "app.hqmodelswitch.desktop",
   "dataDirectory": ".hq-model-switch",
   "databaseFile": "hq-model-switch.db",

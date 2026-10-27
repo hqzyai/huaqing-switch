@@ -4,10 +4,10 @@
 
 ## 产品与使用
 
-产品显示名称统一为 **Huaqing Switch**，源码仓库为 `huaqing-switch`。已有应用 ID、包名、深链及数据库路径保持稳定，避免更名产生两份配置。品牌样式继续使用用户提供的 shadcn-ui-unify 规范。只显示 HQ Harness 和设置；其他客户端、路由、聚合及辅助管理入口不加载。
+产品显示名称统一为 **Huaqing Switch**，源码仓库为 `huaqing-switch`。已有应用 ID、包名、深链及数据库路径保持稳定，避免更名产生两份配置。品牌样式继续使用用户提供的 shadcn-ui-unify 规范。0.1.1 起显示 HQ Harness、用量统计和设置；其他客户端、路由、聚合及辅助管理入口不加载。
 
 1. 启动 Switch，确认“本机服务”显示正在运行；默认监听 `127.0.0.1:17621`。
-2. 添加连接，选择与供应商实际 API 相符的协议、地址、模型和密钥，设为默认。上下文/输出限制是本地预算，需要按供应商能力填写；图片支持必须显式开启。
+2. 添加连接，选择与供应商实际 API 相符的协议、地址、模型和密钥，设为默认。上下文/输出限制的单位为 Token，填写完整整数，例如十进制 1M 上下文填 `1000000`，393k 输出填 `393000`；服务商有精确值时以精确值为准。这是本地预算，需要按供应商能力填写；图片支持必须显式开启。详见[限制与用量说明](hq-usage.md)。
 3. 启动 HQHarness，新建会话即可使用。模型设置和原来的客户端密钥配置页面不加载。默认连接变化在最多约 5 秒内同步，作用于新会话。
 
 Switch 未启动时，HQHarness 的默认来源仍是 Huaqing Switch，不会退回 DeepSeek 或其他直连。初次没有默认连接时显示 `huaqing-switch/awaiting-connection`；在 Switch 配置默认连接后新建会话。旧的直连会话请求会明确报错，需新建会话。
@@ -48,7 +48,7 @@ flowchart LR
 
 ## 代码位置与可复现验证
 
-Switch：`src-tauri/src/hq.rs`、`src-tauri/src/hq/gateway.rs`、`src/components/hq/HqApp.tsx`、`src/lib/api/hq.ts`。
+Switch：`src-tauri/src/hq.rs`、`src-tauri/src/hq/gateway.rs`、`src-tauri/src/hq/usage.rs`、`src/components/hq/HqApp.tsx`、`src/components/hq/HqUsagePage.tsx`、`src/lib/api/hq.ts`。0.1.1 的限制单位与独立 HQ 用量统计、数据口径和本地验证见[专门说明](hq-usage.md)。下方 0.1.0 / HQHarness 0.1.8 记录仍对应此前实际安装验收的安装包。
 
 HQHarness：`src/main/huaqing-switch.ts`、主进程运行时环境、preload 来源标识，以及现有 `packages/hqharness-model-access` 中的 Switch 插件。两个针对锁定上游版本的 patch-package 补丁分别限制 LLM 供应商和禁止模型设置模块挂载；保留了这些补丁中先前已有的客户端改动。没有引入第二套运行时或 UI。
 
@@ -114,7 +114,7 @@ node scripts/verify-harness-connector.mjs --harness-exe "$harnessExe" --harness-
 | HQHarness 当前代码 | `61788d465e95d8480fc16a59727e955461c487f7`；[Windows 完整验收 CI 40315304291](https://github.com/jiawenyao401/HQHarness/actions/runs/40315304291) 的构建、测试、原生验证和草稿交付核验通过。 |
 | 106 已安装 HQHarness 0.1.8 | 源码 `c26c526b491006db8bbb462011c44ed31aac95e4`；生产应用 ID 为 `app.hqharness.desktop`。到 `61788d4` 只改草稿交付脚本与对应测试，产品输入树相同。 |
 
-已安装 Switch MSI 的 SHA256 为 `3b063a29476e4233673114db8453c9dcf84389ab47e1e52eb6e2a1d9d87e3ce9`；已安装 HQHarness NSIS 包的 SHA256 为 `8f564537c63d21993d4fcd00d239593e168f1d02478db7393823ffc91c63b9a8`。两者均在传输后校验并以退出码 0 安装。HQHarness 的草稿交付始终保留未发布状态；上传后通过真实 release ID 检查源码、草稿标记及四个已上传资产，避免未发布 tag 的 REST 404 造成误报。
+已安装 Switch MSI 的 SHA256 为 `3b063a29476e4233673114db8453c9dcf84389ab47e1e52eb6e2a1d9d87e3ce9`；已安装 HQHarness NSIS 包的 SHA256 为 `8f564537c63d21993d4fcd00d239593e168f1d02478db7393823ffc91c63b9a8`。两者均在传输后校验并以退出码 0 安装。HQHarness 构建流程先交付草稿，上传后通过真实 release ID 检查源码、草稿标记及资产，避免未发布 tag 的 REST 404 造成误报。2026-10-27 应用户要求，已将两份实际验收的安装包发布为预发布版：[Switch 0.1.0](https://github.com/hqzyai/huaqing-switch/releases/tag/v0.1.0-acceptance.20261027)、[HQHarness 0.1.8](https://github.com/jiawenyao401/HQHarness/releases/tag/v0.1.8-acceptance.20261027)。均附 SHA256 和脱敏验收报告；HQHarness 仓库权限保持私有。
 
 ### 106 已完成的验收
 

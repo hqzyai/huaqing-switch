@@ -1,5 +1,5 @@
 //! Authenticated loopback transport. Wire protocols stay native to each provider.
-use super::{load, Connection, Protocol};
+use super::{load, usage, Connection, Protocol};
 use crate::database::Database;
 use axum::{
     body::{to_bytes, Body},
@@ -43,6 +43,7 @@ struct Inner {
     slots: Arc<Semaphore>,
     active: AtomicU64,
     requests: AtomicU64,
+    usage: usage::Store,
 }
 
 #[derive(Serialize)]
@@ -82,6 +83,7 @@ impl Gateway {
     pub fn new(db: Arc<Database>, directory: PathBuf) -> Self {
         let brand: Value = serde_json::from_str(include_str!("../../../brand.config.json"))
             .expect("valid bundled product policy");
+        let usage = usage::Store::new(db.clone());
         Self(Arc::new(Inner {
             db,
             directory,
@@ -103,11 +105,15 @@ impl Gateway {
             slots: Arc::new(Semaphore::new(16)),
             active: AtomicU64::new(0),
             requests: AtomicU64::new(0),
+            usage,
         }))
     }
 
     fn endpoint(&self) -> String {
         format!("http://127.0.0.1:{}", self.0.port)
+    }
+    pub(crate) fn usage(&self) -> usage::Store {
+        self.0.usage.clone()
     }
     pub async fn start(&self) {
         let mut task = self.0.lifecycle.lock().await;
@@ -290,7 +296,10 @@ struct RequestGuard {
     start: Instant,
     request_id: uuid::Uuid,
     status: u16,
-    _permit: OwnedSemaphorePermit,
+    started_at: i64,
+    record: Option<usage::Record>,
+    observer: Option<usage::Observer>,
+    permit: Option<OwnedSemaphorePermit>,
 }
 impl Drop for RequestGuard {
     fn drop(&mut self) {
@@ -301,6 +310,85 @@ impl Drop for RequestGuard {
             self.status,
             self.start.elapsed().as_millis()
         );
+        if let Some(mut record) = self.record.take() {
+            if let Some(observer) = &self.observer {
+                observer.apply(&mut record);
+                if matches!(record.outcome.as_str(), "pending" | "success") {
+                    if let Some(code) = observer.semantic_error {
+                        record.outcome = if code == "UPSTREAM_INCOMPLETE" {
+                            "interrupted"
+                        } else {
+                            "failed"
+                        }
+                        .into();
+                        record.failure_code = Some(code.into());
+                    }
+                }
+            }
+            if record.outcome == "pending" {
+                if self
+                    .observer
+                    .as_ref()
+                    .is_some_and(|observer| observer.terminal)
+                {
+                    // SSE clients commonly stop reading at the terminal marker
+                    // without polling HTTP EOF; the model work already completed.
+                    record.outcome = "success".into();
+                } else {
+                    record.outcome = "cancelled".into();
+                    record.failure_code = Some("CLIENT_CANCELLED".into());
+                }
+            }
+            record.duration_ms =
+                Some(self.start.elapsed().as_millis().min(i64::MAX as u128) as u64);
+            if let Some(permit) = self.permit.take() {
+                self.gateway.0.usage.finish(record, permit);
+            }
+        }
+    }
+}
+impl RequestGuard {
+    fn failed(&mut self, status: u16, code: &'static str, interrupted: bool) {
+        self.status = status;
+        if let Some(record) = &mut self.record {
+            record.outcome = if interrupted { "interrupted" } else { "failed" }.into();
+            record.failure_code = Some(code.into());
+            // Once headers arrived, keep the actual upstream HTTP status.
+            if record.http_status.is_none() {
+                record.http_status = Some(status);
+            }
+        }
+    }
+    fn completed(&mut self, status: u16, sse: bool) {
+        self.status = status;
+        if let Some(observer) = &mut self.observer {
+            observer.eof();
+        }
+        if sse
+            && !self
+                .observer
+                .as_ref()
+                .is_some_and(|observer| observer.terminal)
+        {
+            self.failed(status, "STREAM_INCOMPLETE", true);
+        } else if let Some(record) = &mut self.record {
+            record.outcome = "success".into();
+        }
+    }
+}
+
+/// Standard opt-in without overriding caller options or retrying a charged call.
+fn request_chat_usage(payload: &mut Value) {
+    if payload.get("stream").and_then(Value::as_bool) != Some(true) {
+        return;
+    }
+    let options = payload
+        .as_object_mut()
+        .expect("validated request object")
+        .entry("stream_options")
+        .or_insert_with(|| json!({}));
+    if let Some(options) = options.as_object_mut() {
+        options.entry("include_usage").or_insert(Value::Bool(true));
     }
 }
 
@@ -331,7 +419,10 @@ async fn forward(
         start: Instant::now(),
         request_id: uuid::Uuid::new_v4(),
         status: 499,
-        _permit: permit,
+        started_at: chrono::Utc::now().timestamp(),
+        record: None,
+        observer: None,
+        permit: Some(permit),
     };
     let store = match gateway.store().await {
         Ok(store) => store,
@@ -351,6 +442,10 @@ async fn forward(
             )
         }
     };
+    let record =
+        usage::Record::pending(guard.request_id.to_string(), guard.started_at, &connection);
+    guard.record = Some(record.clone());
+    gateway.0.usage.begin(record).await;
     if connection.revision != revision || connection.protocol != protocol {
         return rejected(
             &mut guard,
@@ -403,6 +498,15 @@ async fn forward(
         );
     }
     payload["model"] = Value::String(connection.model.clone());
+    if let Some(record) = &mut guard.record {
+        record.streamed = payload
+            .get("stream")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+    }
+    if protocol == Protocol::OpenaiChat {
+        request_chat_usage(&mut payload);
+    }
     let output_field = match protocol {
         Protocol::OpenaiChat => {
             if payload.get("max_completion_tokens").is_some() {
@@ -492,6 +596,9 @@ async fn forward(
             }
         };
     let status = upstream.status();
+    if let Some(record) = &mut guard.record {
+        record.http_status = Some(status.as_u16());
+    }
 
     if !status.is_success() {
         return rejected(
@@ -509,6 +616,18 @@ async fn forward(
         .get("content-type")
         .cloned()
         .unwrap_or_else(|| "application/json".parse().unwrap());
+    let sse = content_type.to_str().ok().is_some_and(|value| {
+        value
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .eq_ignore_ascii_case("text/event-stream")
+    });
+    if let Some(record) = &mut guard.record {
+        record.streamed = sse;
+    }
+    guard.observer = Some(usage::Observer::new(protocol, sse));
     let deadline = tokio::time::Instant::from_std(guard.start + REQUEST_DEADLINE);
     let stream = async_stream::stream! {
         let mut guard=guard;
@@ -516,9 +635,10 @@ async fn forward(
         loop {
             let until=std::cmp::min(deadline,tokio::time::Instant::now()+Duration::from_secs(120));
             match tokio::time::timeout_at(until,stream.next()).await {
-                Ok(Some(Ok(bytes)))=>yield Ok::<_,std::io::Error>(bytes),
-                Ok(None)=>{ guard.status=status.as_u16(); break; },
-                _=>{ guard.status=504; yield Err(std::io::Error::new(std::io::ErrorKind::TimedOut,"模型响应已中断或超时")); break; },
+                Ok(Some(Ok(bytes)))=>{ if let Some(observer)=&mut guard.observer { observer.push(&bytes); } yield Ok::<_,std::io::Error>(bytes); },
+                Ok(None)=>{ guard.completed(status.as_u16(),sse); break; },
+                Ok(Some(Err(_)))=>{ guard.failed(502,"STREAM_ERROR",true); yield Err(std::io::Error::new(std::io::ErrorKind::ConnectionReset,"模型响应已中断")); break; },
+                Err(_)=>{ guard.failed(504,"STREAM_TIMEOUT",true); yield Err(std::io::Error::new(std::io::ErrorKind::TimedOut,"模型响应已中断或超时")); break; },
             }
         }
     };
@@ -531,8 +651,13 @@ async fn forward(
     response
 }
 
-fn rejected(guard: &mut RequestGuard, status: StatusCode, code: &str, message: &str) -> Response {
-    guard.status = status.as_u16();
+fn rejected(
+    guard: &mut RequestGuard,
+    status: StatusCode,
+    code: &'static str,
+    message: &str,
+) -> Response {
+    guard.failed(status.as_u16(), code, false);
     error(status, code, message)
 }
 
@@ -560,6 +685,237 @@ pub async fn hq_retry_gateway(state: tauri::State<'_, Gateway>) -> Result<Gatewa
 mod tests {
     use super::*;
     use axum::http::Request;
+    use http_body_util::BodyExt;
+
+    #[test]
+    fn chat_usage_opt_in_preserves_explicit_options() {
+        let mut payload = json!({"stream":true,"stream_options":{"custom_option":7},"messages":[]});
+        request_chat_usage(&mut payload);
+        assert_eq!(
+            payload["stream_options"],
+            json!({"custom_option":7,"include_usage":true})
+        );
+        payload["stream_options"]["include_usage"] = json!(false);
+        request_chat_usage(&mut payload);
+        assert_eq!(payload["stream_options"]["include_usage"], false);
+        let mut nonstream = json!({"stream":false});
+        request_chat_usage(&mut nonstream);
+        assert!(nonstream.get("stream_options").is_none());
+    }
+    async fn fixture(
+        wire: &'static [u8],
+        sse: bool,
+        status: StatusCode,
+        pending: bool,
+    ) -> (Gateway, Connection, JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .await
+            .unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let router=Router::new().fallback(move || async move {
+            let body=if pending { Body::from_stream(async_stream::stream! { yield Ok::<_,std::io::Error>(bytes::Bytes::from_static(wire)); futures::future::pending::<()>().await; }) } else { Body::from(wire) };
+            let mut response=Response::new(body);*response.status_mut()=status;
+            response.headers_mut().insert("content-type",if sse {"text/event-stream"} else {"application/json"}.parse().unwrap());response
+        });
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        let gateway = gateway();
+        let connection = Connection {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: "owned fixture".into(),
+            protocol: Protocol::OpenaiChat,
+            base_url: format!("http://127.0.0.1:{port}/v1"),
+            model: "native-model".into(),
+            api_key: "fixture-upstream-secret".into(),
+            revision: 1,
+            context_window: 32768,
+            max_output_tokens: 4096,
+            supports_images: false,
+        };
+        let value = json!({"revision":1,"activeId":connection.id,"connections":[connection]});
+        gateway
+            .0
+            .db
+            .conn
+            .lock()
+            .unwrap()
+            .execute(
+                "INSERT INTO settings(key,value) VALUES('hq.connections.v1',?)",
+                [value.to_string()],
+            )
+            .unwrap();
+        (gateway, connection, server)
+    }
+    async fn invoke(gateway: &Gateway, connection: &Connection, streamed: bool) -> Response {
+        let request = Request::builder()
+            .header("host", format!("127.0.0.1:{}", gateway.0.port))
+            .header("authorization", format!("Bearer {}", gateway.0.token))
+            .body(Body::from(
+                json!({"model":model_id(connection),"stream":streamed,"messages":[]}).to_string(),
+            ))
+            .unwrap();
+        forward(
+            gateway.clone(),
+            connection.id.clone(),
+            1,
+            Protocol::OpenaiChat,
+            request,
+        )
+        .await
+    }
+    async fn history(gateway: &Gateway, count: u64) -> Value {
+        for _ in 0..200 {
+            let value = serde_json::to_value(
+                gateway
+                    .usage()
+                    .query(usage::UsageFilter::default())
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            if value["total"].as_u64() == Some(count) && value["inFlight"] == 0 {
+                return value;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("owned metadata did not finish");
+    }
+    #[tokio::test]
+    async fn forwarding_preserves_bytes_and_terminal_record_is_exactly_once() {
+        const WIRE:&[u8]=b"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3}}\r\n\r\ndata: [DONE]\n\ndata: [DONE]\n\n";
+        let (gateway, connection, server) = fixture(WIRE, true, StatusCode::OK, false).await;
+        let response = invoke(&gateway, &connection, true).await;
+        assert_eq!(
+            to_bytes(response.into_body(), 4096).await.unwrap().as_ref(),
+            WIRE
+        );
+        let report = history(&gateway, 1).await;
+        assert_eq!(report["recent"][0]["outcome"], "success");
+        assert_eq!(report["recent"][0]["usageStatus"], "final");
+        assert_eq!(report["summary"]["totalTokens"], 10);
+        assert_eq!(gateway.0.slots.available_permits(), 16);
+        let mut body = invoke(&gateway, &connection, true).await.into_body();
+        assert!(body.frame().await.unwrap().is_ok());
+        drop(body);
+        let report = history(&gateway, 2).await;
+        assert_eq!(report["summary"]["successful"], 2);
+        server.abort();
+    }
+    #[tokio::test]
+    async fn dropping_unpolled_or_partially_consumed_response_records_cancellation() {
+        const WIRE: &[u8] = b"data: {\"choices\":[{\"delta\":{\"content\":\"waiting\"}}]}\n\n";
+        let (gateway, connection, server) = fixture(WIRE, true, StatusCode::OK, true).await;
+        drop(invoke(&gateway, &connection, true).await);
+        let first = history(&gateway, 1).await;
+        assert_eq!(first["recent"][0]["outcome"], "cancelled");
+        assert_eq!(first["recent"][0]["usageStatus"], "unknown");
+        let mut body = invoke(&gateway, &connection, true).await.into_body();
+        assert!(body.frame().await.unwrap().is_ok());
+        drop(body);
+        let second = history(&gateway, 2).await;
+        assert_eq!(second["summary"]["cancelled"], 2);
+        assert_eq!(gateway.0.active.load(Ordering::Relaxed), 0);
+        server.abort();
+    }
+    #[tokio::test]
+    async fn upstream_http_failure_and_premature_eof_have_distinct_outcomes() {
+        let (gateway, connection, server) = fixture(
+            b"sensitive-provider-error-do-not-store",
+            false,
+            StatusCode::TOO_MANY_REQUESTS,
+            false,
+        )
+        .await;
+        let response = invoke(&gateway, &connection, false).await;
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        drop(response);
+        let report = history(&gateway, 1).await;
+        assert_eq!(report["recent"][0]["outcome"], "failed");
+        assert_eq!(report["recent"][0]["failureCode"], "UPSTREAM_ERROR");
+        assert!(!report.to_string().contains("sensitive-provider-error"));
+        assert!(!report.to_string().contains("fixture-upstream-secret"));
+        server.abort();
+        let (gateway, connection, server) = fixture(
+            b"data: {\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":1}}\n\n",
+            true,
+            StatusCode::OK,
+            false,
+        )
+        .await;
+        to_bytes(invoke(&gateway, &connection, true).await.into_body(), 4096)
+            .await
+            .unwrap();
+        let report = history(&gateway, 1).await;
+        assert_eq!(report["recent"][0]["outcome"], "interrupted");
+        assert_eq!(report["recent"][0]["failureCode"], "STREAM_INCOMPLETE");
+        assert_eq!(report["recent"][0]["usageStatus"], "partial");
+        server.abort();
+    }
+    #[tokio::test]
+    async fn http_200_semantic_error_is_not_success() {
+        let (gateway, connection, server) = fixture(
+            b"data: {\"error\":{\"message\":\"sensitive-error\"}}\n\n",
+            true,
+            StatusCode::OK,
+            false,
+        )
+        .await;
+        to_bytes(invoke(&gateway, &connection, true).await.into_body(), 4096)
+            .await
+            .unwrap();
+        let report = history(&gateway, 1).await;
+        assert_eq!(report["recent"][0]["outcome"], "failed");
+        assert_eq!(report["recent"][0]["failureCode"], "UPSTREAM_FAILED");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn changed_known_connection_is_counted_and_storage_failure_does_not_break_inference() {
+        let (gateway, connection, server) =
+            fixture(b"{\"choices\":[]}", false, StatusCode::OK, false).await;
+        let request = Request::builder()
+            .header("host", format!("127.0.0.1:{}", gateway.0.port))
+            .header("authorization", format!("Bearer {}", gateway.0.token))
+            .body(Body::empty())
+            .unwrap();
+        let response = forward(
+            gateway.clone(),
+            connection.id.clone(),
+            2,
+            Protocol::OpenaiChat,
+            request,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        drop(response);
+        let report = history(&gateway, 1).await;
+        assert_eq!(report["recent"][0]["failureCode"], "CONNECTION_CHANGED");
+        gateway
+            .0
+            .db
+            .conn
+            .lock()
+            .unwrap()
+            .execute_batch("PRAGMA query_only=ON")
+            .unwrap();
+        let response = invoke(&gateway, &connection, false).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            to_bytes(response.into_body(), 4096).await.unwrap().as_ref(),
+            b"{\"choices\":[]}"
+        );
+        assert!(gateway.usage().storage_error());
+        gateway
+            .0
+            .db
+            .conn
+            .lock()
+            .unwrap()
+            .execute_batch("PRAGMA query_only=OFF")
+            .unwrap();
+        server.abort();
+    }
 
     fn gateway() -> Gateway {
         Gateway::new(Arc::new(Database::memory().unwrap()), PathBuf::new())

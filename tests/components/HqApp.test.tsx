@@ -25,6 +25,9 @@ vi.mock("@/components/theme-provider", () => ({
 vi.mock("@/components/settings/AboutSection", () => ({
   AboutSection: () => <section>Huaqing Switch</section>,
 }));
+vi.mock("@/components/hq/HqUsagePage", () => ({
+  HqUsagePage: () => <section aria-label="HQ 用量">独立 HQ 用量内容</section>,
+}));
 
 const existing: HqSnapshot = {
   revision: 4,
@@ -69,7 +72,7 @@ describe("HQ-only product workspace", () => {
     api.get.mockResolvedValue(structuredClone(existing));
   });
 
-  it("shows only HQ Harness and settings even with a stored legacy page", async () => {
+  it("shows only HQ connections, HQ usage and settings even with a stored legacy page", async () => {
     localStorage.setItem("hq-model-switch-last-app", "codex");
     localStorage.setItem("hq-model-switch-last-view", "usage");
     renderApp();
@@ -77,6 +80,7 @@ describe("HQ-only product workspace", () => {
     const nav = within(screen.getByRole("navigation", { name: "主导航" }));
     expect(nav.getAllByRole("button").map((b) => b.textContent)).toEqual([
       "HQ Harness",
+      "用量统计",
       "设置",
     ]);
     for (const name of [
@@ -87,10 +91,15 @@ describe("HQ-only product workspace", () => {
       "MCP",
       "Skills",
       "授权中心",
-      "用量统计",
     ]) {
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
     }
+    fireEvent.click(nav.getByRole("button", { name: "用量统计" }));
+    expect(screen.getByRole("region", { name: "HQ 用量" })).toBeInTheDocument();
+    expect(nav.getByRole("button", { name: "用量统计" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     fireEvent.click(nav.getByRole("button", { name: "设置" }));
     expect(screen.getByRole("heading", { name: "外观" })).toBeInTheDocument();
     expect(screen.queryByText("本地路由")).not.toBeInTheDocument();
@@ -120,6 +129,31 @@ describe("HQ-only product workspace", () => {
     );
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("explains raw Token units and saves large provider limits as exact integers", async () => {
+    api.save.mockResolvedValue({ ...existing, revision: 5 });
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "编辑 Development API" }),
+    );
+    const context = screen.getByLabelText("上下文本地限制（Token）");
+    const output = screen.getByLabelText("单次输出上限（Token）");
+    expect(context).toHaveAccessibleDescription(/1000000（十进制 1M）/);
+    expect(output).toHaveAccessibleDescription(/上限为 393216，就填写 393216/);
+    expect(context).toHaveAccessibleDescription(/服务商给出的精确值/);
+    fireEvent.change(context, { target: { value: "1000000" } });
+    fireEvent.change(output, { target: { value: "393216" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存连接" }));
+    await waitFor(() =>
+      expect(api.save).toHaveBeenCalledWith(
+        4,
+        expect.objectContaining({
+          contextWindow: 1000000,
+          maxOutputTokens: 393216,
+        }),
+      ),
     );
   });
 

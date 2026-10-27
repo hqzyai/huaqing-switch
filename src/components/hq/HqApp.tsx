@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
+  ChartNoAxesCombined,
   KeyRound,
   Loader2,
   Pencil,
@@ -49,6 +50,7 @@ import {
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/branding/hqzyai-logomark.svg";
+import { HqUsagePage } from "./HqUsagePage";
 
 const QUERY_KEY = ["hq", "connections"];
 const PROTOCOLS: Record<HqProtocol, string> = {
@@ -59,7 +61,9 @@ const PROTOCOLS: Record<HqProtocol, string> = {
 
 /** The shipping product mounts this workspace, never the upstream multi-client app. */
 export default function HqApp() {
-  const [page, setPage] = useState<"connections" | "settings">("connections");
+  const [page, setPage] = useState<"connections" | "usage" | "settings">(
+    "connections",
+  );
   const [editor, setEditor] = useState<HqConnection | "new" | null>(null);
   const [deleting, setDeleting] = useState<HqConnection | null>(null);
   const queryClient = useQueryClient();
@@ -103,6 +107,7 @@ export default function HqApp() {
   };
   const navigation = [
     { id: "connections" as const, title: "HQ Harness", Icon: Server },
+    { id: "usage" as const, title: "用量统计", Icon: ChartNoAxesCombined },
     { id: "settings" as const, title: "设置", Icon: Settings },
   ];
 
@@ -166,7 +171,11 @@ export default function HqApp() {
           style={DRAG_REGION_STYLE}
         >
           <h1 className="flex-1 text-title">
-            {page === "connections" ? "HQ Harness" : "设置"}
+            {page === "connections"
+              ? "HQ Harness"
+              : page === "usage"
+                ? "用量统计"
+                : "设置"}
           </h1>
           {isWindows() && (
             <div
@@ -216,6 +225,8 @@ export default function HqApp() {
                 </section>
                 <AboutSection isPortable={false} />
               </>
+            ) : page === "usage" ? (
+              <HqUsagePage />
             ) : (
               <>
                 <section
@@ -236,7 +247,7 @@ export default function HqApp() {
                         {gateway.data.address}
                       </p>
                       <p className="text-caption text-fg-2">
-                        进行中 {gateway.data.activeRequests} · 累计请求{" "}
+                        进行中 {gateway.data.activeRequests} · 本次启动请求{" "}
                         {gateway.data.totalRequests}
                       </p>
                     </>
@@ -616,7 +627,7 @@ function ConnectionForm({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="hq-context">上下文本地限制</Label>
+              <Label htmlFor="hq-context">上下文本地限制（Token）</Label>
               <Input
                 id="hq-context"
                 type="number"
@@ -626,10 +637,14 @@ function ConnectionForm({
                 required
                 value={contextWindow}
                 onChange={(e) => setContextWindow(e.target.value)}
+                aria-describedby="hq-context-help hq-token-help"
               />
+              <p id="hq-context-help" className="text-caption text-fg-2">
+                填写原始整数，例如 1000000（十进制 1M）。
+              </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="hq-output">单次输出上限</Label>
+              <Label htmlFor="hq-output">单次输出上限（Token）</Label>
               <Input
                 id="hq-output"
                 type="number"
@@ -639,11 +654,16 @@ function ConnectionForm({
                 required
                 value={maxOutputTokens}
                 onChange={(e) => setMaxOutputTokens(e.target.value)}
+                aria-describedby="hq-output-help hq-token-help"
               />
+              <p id="hq-output-help" className="text-caption text-fg-2">
+                例如服务商上限为 393216，就填写 393216。
+              </p>
             </div>
           </div>
-          <p className="text-caption text-fg-2">
-            这是客户端使用的限制，请按模型实际能力调整，不代表服务商公布的容量。
+          <p id="hq-token-help" className="text-caption text-fg-2">
+            单位是 Token，不能填写 M/k 后缀。请按服务商给出的精确值填写；
+            这些数值用于客户端限制，不会改变服务商的实际容量。
           </p>
           <label className="flex min-h-8 items-center gap-2 text-body">
             <input

@@ -38,6 +38,82 @@ export interface HqGatewayStatus {
   totalRequests: number;
 }
 
+export interface HqUsageFilter {
+  /** Local calendar ranges are sent as epoch seconds; the end is exclusive. */
+  startTime?: number;
+  endTime?: number;
+  connectionId?: string;
+  model?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface HqTokenUsage {
+  /** Input includes cache reads/writes; cache fields are subsets, not extra input. */
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
+  totalTokens: number | null;
+}
+
+export interface HqUsageSummary extends HqTokenUsage {
+  requests: number;
+  successful: number;
+  failed: number;
+  cancelled: number;
+  interrupted: number;
+  usageReported: number;
+  usageMissing: number;
+  usagePartial: number;
+  usageFinal: number;
+  durationMs: number;
+  avgDurationMs: number | null;
+}
+
+export interface HqUsageGroup {
+  connectionId: string;
+  connectionName: string;
+  model: string;
+  protocol: HqProtocol;
+  summary: HqUsageSummary;
+}
+
+export type HqRequestOutcome =
+  | "success"
+  | "failed"
+  | "cancelled"
+  | "interrupted";
+
+export interface HqUsageEntry extends HqTokenUsage {
+  id: string;
+  startedAt: number;
+  connectionId: string;
+  connectionName: string;
+  connectionRevision: number;
+  model: string;
+  protocol: HqProtocol;
+  streamed: boolean;
+  outcome: HqRequestOutcome;
+  httpStatus: number | null;
+  failureCode: string | null;
+  durationMs: number | null;
+  usageReported: boolean;
+  usageStatus: "unknown" | "partial" | "final";
+}
+
+export interface HqUsageSnapshot {
+  summary: HqUsageSummary;
+  perConnectionModel: HqUsageGroup[];
+  recent: HqUsageEntry[];
+  total: number;
+  inFlight: number;
+  storageError: boolean;
+  /** All HQ history options, including connections that have since been deleted. */
+  connections: { id: string; name: string }[];
+  models: string[];
+}
+
 export const hqApi = {
   status: () => invoke<HqGatewayStatus>("hq_get_gateway_status"),
   retryGateway: () => invoke<HqGatewayStatus>("hq_retry_gateway"),
@@ -48,4 +124,6 @@ export const hqApi = {
     invoke<HqSnapshot>("hq_select_connection", { revision, id }),
   remove: (revision: number, id: string) =>
     invoke<HqSnapshot>("hq_delete_connection", { revision, id }),
+  usage: (filter: HqUsageFilter = {}) =>
+    invoke<HqUsageSnapshot>("hq_get_usage", { filter }),
 };

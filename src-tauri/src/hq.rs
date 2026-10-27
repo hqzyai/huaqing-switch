@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Manager;
 pub(crate) mod gateway;
+pub(crate) mod usage;
 
 const STORE_KEY: &str = "hq.connections.v1";
 pub struct HqState(pub Arc<Database>);

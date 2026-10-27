@@ -1524,6 +1524,7 @@ pub fn run() {
             hq::hq_delete_connection,
             hq::gateway::hq_get_gateway_status,
             hq::gateway::hq_retry_gateway,
+            hq::usage::hq_get_usage,
             commands::get_providers,
             commands::get_current_provider,
             commands::add_provider,
