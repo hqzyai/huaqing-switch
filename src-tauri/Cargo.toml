@@ -15,7 +15,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 doctest = false
 
 [features]
-default = []
+default = ["desktop"]
+desktop = []
 test-hooks = []
 
 [build-dependencies]

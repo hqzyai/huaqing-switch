@@ -1,0 +1,76 @@
+name: huaqing-switch
+services:
+  switch:
+    image: ${HQ_SWITCH_IMAGE:?Set the verified Switch image tag}
+    pull_policy: never
+    restart: unless-stopped
+    # This stack runs on the existing dedicated rootless Docker daemon.
+    # Container UID 0 maps to the unprivileged deployment owner on the host,
+    # allowing 0600 bind-mounted credentials without widening their modes.
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16777216
+    stop_grace_period: 330s
+    environment:
+      HQ_SWITCH_WEB_BIND: 0.0.0.0:8080
+      HQ_SWITCH_GATEWAY_BIND: 0.0.0.0:17621
+      HQ_SWITCH_GATEWAY_URL: http://huaqing-switch:17621
+      HQ_SWITCH_PUBLIC_ORIGIN: https://${HQ_SWITCH_LAN_ADDRESS:?Set the LAN address}:18444
+      HQ_SWITCH_DATA_DIR: /data
+      HQ_SWITCH_STATIC_DIR: /app/dist-server
+      HQ_SWITCH_ADMIN_TOKEN_FILE: /run/secrets/admin-token
+      HQ_SWITCH_INFERENCE_TOKEN_FILE: /run/secrets/inference-token
+    volumes:
+      - ${HQ_SWITCH_STATE_DIR:?Set the private state directory}/data:/data
+      - ${HQ_SWITCH_STATE_DIR}/private/admin-token:/run/secrets/admin-token:ro
+      - ${HQ_SWITCH_STATE_DIR}/private/inference-token:/run/secrets/inference-token:ro
+    networks:
+      front:
+      harness:
+        aliases: [huaqing-switch]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 2
+    healthcheck:
+      test: [CMD, /app/huaqing-switch-server, healthcheck]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+  edge:
+    image: ${HQ_SWITCH_EDGE_IMAGE:?Set the verified Caddy edge image}
+    pull_policy: never
+    restart: unless-stopped
+    # The edge image's /data starts root-owned; rootless UID 0 can initialize
+    # this dedicated TLS volume without exposing or widening any credential.
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16777216
+    environment:
+      HQ_SWITCH_LAN_ADDRESS: ${HQ_SWITCH_LAN_ADDRESS}
+    ports:
+      - ${HQ_SWITCH_LAN_ADDRESS}:18444:18444
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - edge-tls:/data
+    networks: [front]
+    depends_on:
+      switch:
+        condition: service_healthy
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+networks:
+  front:
+    internal: true
+  harness:
+    name: ${HQ_HARNESS_CONTROL_NETWORK:-huaqing-team-control}
+    external: true
+volumes:
+  edge-tls:

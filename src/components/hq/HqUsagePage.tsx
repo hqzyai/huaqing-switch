@@ -146,7 +146,11 @@ function Summary({
 }
 
 /** An independent HQ history view; no legacy multi-client usage APIs are called. */
-export function HqUsagePage() {
+export function HqUsagePage({
+  serverDeployment = false,
+}: {
+  serverDeployment?: boolean;
+}) {
   const [range, setRange] = useState<Range>("7d");
   const [connectionId, setConnectionId] = useState<string>();
   const [model, setModel] = useState<string>();
@@ -208,7 +212,9 @@ export function HqUsagePage() {
         <div className="min-w-0 space-y-1">
           <h2 className="text-title">HQ 用量统计</h2>
           <p className="max-w-2xl text-body text-fg-2">
-            统计本机经 Switch 的 HQ Harness 请求，从本次升级开始记录，
+            {serverDeployment
+              ? "统计此服务经 Switch 的 HQ Harness 请求，从部署时开始记录，"
+              : "统计本机经 Switch 的 HQ Harness 请求，从本次升级开始记录，"}
             升级前的用量不会回填。
           </p>
         </div>
@@ -302,7 +308,8 @@ export function HqUsagePage() {
       </section>
 
       <p className="text-caption text-fg-2">
-        按本机日期筛选；页面可见时每 15 秒自动刷新。
+        {serverDeployment ? "按浏览器日期筛选" : "按本机日期筛选"}；页面可见时每
+        15 秒自动刷新。
         {query.dataUpdatedAt > 0 && (
           <> 上次更新 {timestamp.format(query.dataUpdatedAt)}。</>
         )}

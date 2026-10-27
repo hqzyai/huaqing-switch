@@ -1,0 +1,17 @@
+.git
+.pnpm-store
+node_modules
+**/target
+validation
+dist
+dist-server
+release
+.env
+.env.*
+.hq-model-switch
+AGENTS.md
+CLAUDE.md
+.codex
+.claude
+shadcn-ui-unify.zip
+**/*.log

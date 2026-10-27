@@ -1,4 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
+import { callServerCommand } from "./hq-server";
+
+function hqCommand<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  return import.meta.env.VITE_HQ_SERVER
+    ? callServerCommand<T>(command, args)
+    : invoke<T>(command, args);
+}
 
 export type HqProtocol = "openai-responses" | "openai-chat" | "anthropic";
 export interface HqConnection {
@@ -115,15 +125,15 @@ export interface HqUsageSnapshot {
 }
 
 export const hqApi = {
-  status: () => invoke<HqGatewayStatus>("hq_get_gateway_status"),
-  retryGateway: () => invoke<HqGatewayStatus>("hq_retry_gateway"),
-  get: () => invoke<HqSnapshot>("hq_get_connections"),
+  status: () => hqCommand<HqGatewayStatus>("hq_get_gateway_status"),
+  retryGateway: () => hqCommand<HqGatewayStatus>("hq_retry_gateway"),
+  get: () => hqCommand<HqSnapshot>("hq_get_connections"),
   save: (revision: number, connection: HqConnectionInput) =>
-    invoke<HqSnapshot>("hq_save_connection", { revision, connection }),
+    hqCommand<HqSnapshot>("hq_save_connection", { revision, connection }),
   select: (revision: number, id: string) =>
-    invoke<HqSnapshot>("hq_select_connection", { revision, id }),
+    hqCommand<HqSnapshot>("hq_select_connection", { revision, id }),
   remove: (revision: number, id: string) =>
-    invoke<HqSnapshot>("hq_delete_connection", { revision, id }),
+    hqCommand<HqSnapshot>("hq_delete_connection", { revision, id }),
   usage: (filter: HqUsageFilter = {}) =>
-    invoke<HqUsageSnapshot>("hq_get_usage", { filter }),
+    hqCommand<HqUsageSnapshot>("hq_get_usage", { filter }),
 };

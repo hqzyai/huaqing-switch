@@ -5,6 +5,7 @@ import {
   ChartNoAxesCombined,
   KeyRound,
   Loader2,
+  LogOut,
   Pencil,
   Plus,
   Server,
@@ -60,7 +61,14 @@ const PROTOCOLS: Record<HqProtocol, string> = {
 };
 
 /** The shipping product mounts this workspace, never the upstream multi-client app. */
-export default function HqApp() {
+export default function HqApp({
+  onLogout,
+  loggingOut = false,
+}: {
+  onLogout?: () => void;
+  loggingOut?: boolean;
+}) {
+  const serverDeployment = onLogout !== undefined;
   const [page, setPage] = useState<"connections" | "usage" | "settings">(
     "connections",
   );
@@ -120,10 +128,10 @@ export default function HqApp() {
         <div
           className={cn(
             "mb-7 flex items-center gap-3 px-1",
-            isMac() ? "pt-10" : "pt-3",
+            !serverDeployment && isMac() ? "pt-10" : "pt-3",
           )}
-          {...DRAG_REGION_ATTR}
-          style={DRAG_REGION_STYLE}
+          {...(serverDeployment ? {} : DRAG_REGION_ATTR)}
+          style={serverDeployment ? undefined : DRAG_REGION_STYLE}
         >
           <img
             src={logo}
@@ -161,14 +169,17 @@ export default function HqApp() {
             </button>
           ))}
         </div>
-        <p className="mt-4 px-3 text-caption text-fg-2">v{BRAND.version}</p>
+        <p className="mt-4 px-3 text-caption text-fg-2">
+          v{BRAND.version}
+          {serverDeployment ? " · Linux 部署版" : ""}
+        </p>
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header
           className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-6"
-          {...DRAG_REGION_ATTR}
-          style={DRAG_REGION_STYLE}
+          {...(serverDeployment ? {} : DRAG_REGION_ATTR)}
+          style={serverDeployment ? undefined : DRAG_REGION_STYLE}
         >
           <h1 className="flex-1 text-title">
             {page === "connections"
@@ -177,7 +188,19 @@ export default function HqApp() {
                 ? "用量统计"
                 : "设置"}
           </h1>
-          {isWindows() && (
+          {serverDeployment && (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              disabled={loggingOut}
+              onClick={onLogout}
+            >
+              <LogOut aria-hidden="true" className="h-4 w-4" />
+              {loggingOut ? "正在退出…" : "退出登录"}
+            </Button>
+          )}
+          {!serverDeployment && isWindows() && (
             <div
               className="flex items-center gap-1"
               style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
@@ -223,18 +246,40 @@ export default function HqApp() {
                     </Select>
                   </div>
                 </section>
-                <AboutSection isPortable={false} />
+                {serverDeployment ? (
+                  <section
+                    aria-label={BRAND.productName}
+                    className="space-y-3 rounded-panel border border-border bg-card p-5"
+                  >
+                    <h2 className="text-strong font-semibold">
+                      {BRAND.productName} v{BRAND.version}
+                    </h2>
+                    <p className="text-body text-fg-2">
+                      Linux 部署版，统一管理 HQ Harness 模型连接与用量。
+                    </p>
+                    <a
+                      className="inline-block rounded-control text-body text-action-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                      href={BRAND.upstream.repository}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      上游源码与许可
+                    </a>
+                  </section>
+                ) : (
+                  <AboutSection isPortable={false} />
+                )}
               </>
             ) : page === "usage" ? (
-              <HqUsagePage />
+              <HqUsagePage serverDeployment={serverDeployment} />
             ) : (
               <>
                 <section
-                  aria-label="本地服务"
+                  aria-label={serverDeployment ? "模型转发服务" : "本地服务"}
                   className="space-y-2 rounded-panel border border-border bg-card p-5"
                 >
                   <p role="status" className="text-strong font-medium">
-                    本地服务：
+                    {serverDeployment ? "模型转发服务：" : "本地服务："}
                     {gateway.data?.running
                       ? "运行中"
                       : gateway.isPending
@@ -256,7 +301,9 @@ export default function HqApp() {
                       <p className="text-body text-fg-2">
                         {gateway.data?.error ??
                           (gateway.isError
-                            ? "无法读取本地服务状态"
+                            ? serverDeployment
+                              ? "无法读取转发服务状态"
+                              : "无法读取本地服务状态"
                             : "正在准备 HQ Harness 连接")}
                       </p>
                       <Button
@@ -264,7 +311,7 @@ export default function HqApp() {
                         disabled={retryGateway.isPending || gateway.isPending}
                         onClick={() => retryGateway.mutate()}
                       >
-                        重试启动
+                        {serverDeployment ? "重新读取状态" : "重试启动"}
                       </Button>
                     </>
                   )}

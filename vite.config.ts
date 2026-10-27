@@ -3,25 +3,32 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { codeInspectorPlugin } from "code-inspector-plugin";
 
-export default defineConfig(({ command }) => ({
-  root: "src",
+export default defineConfig(({ command, mode }) => ({
+  root: mode === "server" ? "src/server" : "src",
   plugins: [
     command === "serve" &&
+      mode !== "server" &&
       codeInspectorPlugin({
         bundler: "vite",
       }),
     react(),
   ].filter(Boolean),
-  base: "./",
+  base: mode === "server" ? "/" : "./",
+  define: {
+    "import.meta.env.VITE_HQ_SERVER": JSON.stringify(mode === "server"),
+  },
   build: {
-    outDir: "../dist",
+    outDir: mode === "server" ? "../../dist-server" : "../dist",
     emptyOutDir: true,
     rollupOptions: {
       // 托盘面板是单独的入口，不加载主界面
-      input: {
-        main: path.resolve(__dirname, "src/index.html"),
-        "tray-panel": path.resolve(__dirname, "src/tray-panel.html"),
-      },
+      input:
+        mode === "server"
+          ? path.resolve(__dirname, "src/server/index.html")
+          : {
+              main: path.resolve(__dirname, "src/index.html"),
+              "tray-panel": path.resolve(__dirname, "src/tray-panel.html"),
+            },
     },
   },
   server: {

@@ -15,6 +15,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use sha2::Sha256;
 use std::{
+    net::SocketAddr,
     path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -23,7 +24,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{
-    sync::{Mutex, OwnedSemaphorePermit, Semaphore},
+    sync::{oneshot, Mutex, OwnedSemaphorePermit, Semaphore},
     task::JoinHandle,
 };
 
@@ -34,16 +35,25 @@ const REQUEST_DEADLINE: Duration = Duration::from_secs(300);
 pub struct Gateway(Arc<Inner>);
 struct Inner {
     db: Arc<Database>,
-    directory: PathBuf,
+    directory: Option<PathBuf>,
+    bind: SocketAddr,
+    endpoint: String,
+    authority: String,
     token: String,
     port: u16,
     client: reqwest::Client,
-    lifecycle: Mutex<Option<JoinHandle<()>>>,
+    lifecycle: Mutex<Option<ListenerTask>>,
     error: std::sync::Mutex<Option<String>>,
     slots: Arc<Semaphore>,
     active: AtomicU64,
     requests: AtomicU64,
     usage: usage::Store,
+}
+
+struct ListenerTask {
+    handle: JoinHandle<()>,
+    #[cfg_attr(feature = "desktop", allow(dead_code))]
+    shutdown: oneshot::Sender<()>,
 }
 
 #[derive(Serialize)]
@@ -83,18 +93,48 @@ impl Gateway {
     pub fn new(db: Arc<Database>, directory: PathBuf) -> Self {
         let brand: Value = serde_json::from_str(include_str!("../../../brand.config.json"))
             .expect("valid bundled product policy");
-        let usage = usage::Store::new(db.clone());
-        Self(Arc::new(Inner {
+        let port = brand["proxyPort"]
+            .as_u64()
+            .expect("configured gateway port") as u16;
+        Self::configured(
             db,
-            directory,
-            port: brand["proxyPort"]
-                .as_u64()
-                .expect("configured gateway port") as u16,
-            token: format!(
+            Some(directory),
+            SocketAddr::from(([127, 0, 0, 1], port)),
+            format!("http://127.0.0.1:{port}"),
+            format!(
                 "{}{}",
                 uuid::Uuid::new_v4().simple(),
                 uuid::Uuid::new_v4().simple()
             ),
+        )
+    }
+
+    /// Explicit deployment policy. Desktop always uses the loopback constructor above.
+    #[cfg(not(feature = "desktop"))]
+    pub fn server(db: Arc<Database>, bind: SocketAddr, endpoint: String, token: String) -> Self {
+        Self::configured(db, None, bind, endpoint, token)
+    }
+
+    fn configured(
+        db: Arc<Database>,
+        directory: Option<PathBuf>,
+        bind: SocketAddr,
+        endpoint: String,
+        token: String,
+    ) -> Self {
+        let authority = endpoint
+            .trim_start_matches("http://")
+            .trim_start_matches("https://")
+            .to_string();
+        let usage = usage::Store::new(db.clone());
+        Self(Arc::new(Inner {
+            db,
+            directory,
+            bind,
+            authority,
+            endpoint,
+            port: bind.port(),
+            token,
             client: reqwest::Client::builder()
                 .connect_timeout(Duration::from_secs(10))
                 .redirect(reqwest::redirect::Policy::none())
@@ -110,30 +150,35 @@ impl Gateway {
     }
 
     fn endpoint(&self) -> String {
-        format!("http://127.0.0.1:{}", self.0.port)
+        self.0.endpoint.clone()
     }
     pub(crate) fn usage(&self) -> usage::Store {
         self.0.usage.clone()
     }
     pub async fn start(&self) {
         let mut task = self.0.lifecycle.lock().await;
-        if task.as_ref().is_some_and(|t| !t.is_finished()) {
+        if task.as_ref().is_some_and(|t| !t.handle.is_finished()) {
             return;
         }
         let result = async {
-            std::fs::create_dir_all(&self.0.directory).map_err(|_| "无法创建本机连接目录".to_string())?;
-            #[cfg(unix)]
-            { use std::os::unix::fs::PermissionsExt; std::fs::set_permissions(&self.0.directory,std::fs::Permissions::from_mode(0o700)).map_err(|_| "无法保护本机连接目录".to_string())?; }
-            let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, self.0.port)).await
-                .map_err(|_| format!("无法监听本机端口 {}，请检查端口占用后重试", self.0.port))?;
-            let path = self.0.directory.join("connector.json");
-            let discovery = json!({"version":1,"product":"huaqing-switch","endpoint":self.endpoint(),"token":self.0.token});
-            crate::config::write_json_file_private(&path, &discovery).map_err(|_| "无法写入本机连接凭证".to_string())?;
+            let listener = tokio::net::TcpListener::bind(self.0.bind).await
+                .map_err(|_| format!("无法监听服务端口 {}，请检查端口占用后重试", self.0.port))?;
+            if let Some(directory) = &self.0.directory {
+                std::fs::create_dir_all(directory).map_err(|_| "无法创建本机连接目录".to_string())?;
+                #[cfg(unix)]
+                { use std::os::unix::fs::PermissionsExt; std::fs::set_permissions(directory,std::fs::Permissions::from_mode(0o700)).map_err(|_| "无法保护本机连接目录".to_string())?; }
+                let path = directory.join("connector.json");
+                let discovery = json!({"version":1,"product":"huaqing-switch","endpoint":self.endpoint(),"token":self.0.token});
+                crate::config::write_json_file_private(&path, &discovery).map_err(|_| "无法写入本机连接凭证".to_string())?;
+            }
             let router = router(self.clone());
+            let (shutdown, receiver) = oneshot::channel();
             let handle = tokio::spawn(async move {
-                if let Err(error) = axum::serve(listener, router).await { log::error!("Huaqing gateway listener stopped: {error}"); }
+                if let Err(error) = axum::serve(listener, router).with_graceful_shutdown(async { let _ = receiver.await; }).await {
+                    log::error!("Huaqing gateway listener stopped: {error}");
+                }
             });
-            Ok::<_, String>(handle)
+            Ok::<_, String>(ListenerTask { handle, shutdown })
         }.await;
         match result {
             Ok(handle) => {
@@ -141,10 +186,7 @@ impl Gateway {
                 if let Ok(mut e) = self.0.error.lock() {
                     *e = None;
                 }
-                log::info!(
-                    "Huaqing Switch gateway listening on 127.0.0.1:{}",
-                    self.0.port
-                );
+                log::info!("Huaqing Switch gateway listener ready");
             }
             Err(error) => {
                 if let Ok(mut e) = self.0.error.lock() {
@@ -158,7 +200,7 @@ impl Gateway {
     pub async fn status(&self) -> GatewayStatus {
         let task = self.0.lifecycle.lock().await;
         GatewayStatus {
-            running: task.as_ref().is_some_and(|t| !t.is_finished()),
+            running: task.as_ref().is_some_and(|t| !t.handle.is_finished()),
             address: self.endpoint(),
             port: self.0.port,
             error: self.0.error.lock().ok().and_then(|e| e.clone()),
@@ -167,10 +209,33 @@ impl Gateway {
         }
     }
 
+    #[cfg(not(feature = "desktop"))]
+    pub async fn shutdown(&self) {
+        if let Some(task) = self.0.lifecycle.lock().await.take() {
+            let _ = task.shutdown.send(());
+            let mut handle = task.handle;
+            if tokio::time::timeout(Duration::from_secs(310), &mut handle)
+                .await
+                .is_err()
+            {
+                handle.abort();
+                let _ = handle.await;
+            }
+        }
+        // Admission permits are retained through final SQLite writes.
+        if let Ok(Ok(permit)) = tokio::time::timeout(
+            Duration::from_secs(5),
+            self.0.slots.clone().acquire_many_owned(16),
+        )
+        .await
+        {
+            drop(permit);
+        }
+    }
+
     fn authorize(&self, headers: &HeaderMap) -> Result<(), AuthorizationError> {
         if headers.contains_key("origin")
-            || headers.get("host").and_then(|h| h.to_str().ok())
-                != Some(format!("127.0.0.1:{}", self.0.port).as_str())
+            || headers.get("host").and_then(|h| h.to_str().ok()) != Some(self.0.authority.as_str())
         {
             return Err(AuthorizationError::AccessDenied);
         }
@@ -546,8 +611,13 @@ async fn forward(
     };
     let target = format!("{}/{suffix}", connection.base_url);
     if let Ok(url) = url::Url::parse(&target) {
-        if url.port_or_known_default() == Some(gateway.0.port)
-            && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
+        let own_endpoint =
+            url::Url::parse(&gateway.0.endpoint).expect("validated gateway endpoint");
+        let advertised_loop = url.host_str() == own_endpoint.host_str()
+            && url.port_or_known_default() == own_endpoint.port_or_known_default();
+        if advertised_loop
+            || (url.port_or_known_default() == Some(gateway.0.port)
+                && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")))
         {
             return rejected(
                 &mut guard,
@@ -669,12 +739,14 @@ fn error(status: StatusCode, code: &str, message: &str) -> Response {
         .into_response()
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn hq_get_gateway_status(
     state: tauri::State<'_, Gateway>,
 ) -> Result<GatewayStatus, String> {
     Ok(state.status().await)
 }
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn hq_retry_gateway(state: tauri::State<'_, Gateway>) -> Result<GatewayStatus, String> {
     state.start().await;

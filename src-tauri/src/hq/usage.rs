@@ -640,6 +640,7 @@ fn summary_from_row(row: &Row<'_>) -> rusqlite::Result<Summary> {
     summary(row, 4)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub async fn hq_get_usage(
     state: tauri::State<'_, super::gateway::Gateway>,

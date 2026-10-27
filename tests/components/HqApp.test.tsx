@@ -47,13 +47,13 @@ const existing: HqSnapshot = {
   ],
 };
 
-function renderApp() {
+function renderApp(props: Parameters<typeof HqApp>[0] = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <HqApp />
+      <HqApp {...props} />
     </QueryClientProvider>,
   );
 }
@@ -130,6 +130,29 @@ describe("HQ-only product workspace", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
+  });
+
+  it("offers a state refresh rather than a listener restart in the Linux deployment", async () => {
+    api.status.mockResolvedValue({
+      running: false,
+      address: "http://switch:17621",
+      port: 17621,
+      error: "服务暂不可用",
+      activeRequests: 0,
+      totalRequests: 0,
+    });
+    api.retryGateway.mockResolvedValue({
+      running: false,
+      error: "服务暂不可用",
+    });
+    renderApp({ onLogout: vi.fn() });
+    const refresh = await screen.findByRole("button", { name: "重新读取状态" });
+    await waitFor(() => expect(refresh).toBeEnabled());
+    expect(
+      screen.queryByRole("button", { name: "重试启动" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(refresh);
+    await waitFor(() => expect(api.retryGateway).toHaveBeenCalledOnce());
   });
 
   it("explains raw Token units and saves large provider limits as exact integers", async () => {

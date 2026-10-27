@@ -1,0 +1,25 @@
+{
+    admin off
+    auto_https disable_redirects
+    persist_config off
+    skip_install_trust
+    servers {
+        protocols h1 h2
+    }
+    pki {
+        ca local {
+            name "HQZY Switch LAN"
+            root_cn "HQZY Switch LAN Root CA"
+            intermediate_cn "HQZY Switch LAN Intermediate CA"
+        }
+    }
+}
+
+https://{$HQ_SWITCH_LAN_ADDRESS}:18444 {
+    tls internal
+    encode gzip
+    request_body {
+        max_size 64KB
+    }
+    reverse_proxy switch:8080
+}

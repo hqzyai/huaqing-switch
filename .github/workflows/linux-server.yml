@@ -1,0 +1,71 @@
+name: Linux Server
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - "server/**"
+      - "src-tauri/src/hq.rs"
+      - "src-tauri/src/hq/**"
+      - "src/**"
+      - "tests/**"
+      - "deploy/linux/**"
+      - "integrations/harness-team/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "brand.config.json"
+      - "vite.config.ts"
+      - ".github/workflows/linux-server.yml"
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: linux-server-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    # Its glibc is older than the deployment's Debian bookworm runtime.
+    runs-on: ubuntu-22.04
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.19.0"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with:
+          version: "10.12.3"
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.95"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          workspaces: server -> target
+          shared-key: linux-server
+      - run: cargo fmt --check --manifest-path server/Cargo.toml
+      - run: cargo test --locked --manifest-path server/Cargo.toml
+      - run: cargo clippy --locked --manifest-path server/Cargo.toml --all-targets -- -D warnings
+      - run: pnpm typecheck
+      - run: pnpm run build:server
+      - run: cargo build --locked --release --manifest-path server/Cargo.toml
+      - name: Stage Linux deployment artifacts
+        shell: bash
+        run: |
+          mkdir -p linux-server-artifact
+          cp server/target/release/huaqing-switch-server LICENSE linux-server-artifact/
+          cp -r dist-server linux-server-artifact/
+          printf '%s\n' "$GITHUB_SHA" > linux-server-artifact/SOURCE_COMMIT
+          cd linux-server-artifact
+          find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v6
+        with:
+          name: huaqing-switch-linux-amd64-${{ github.sha }}
+          path: linux-server-artifact/
+          retention-days: 14

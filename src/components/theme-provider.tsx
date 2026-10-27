@@ -13,6 +13,7 @@ interface ThemeProviderProps {
   children: React.ReactNode;
   defaultTheme?: Theme;
   storageKey?: string;
+  syncNativeTheme?: boolean;
 }
 
 interface ThemeContextValue {
@@ -52,6 +53,7 @@ export function ThemeProvider({
   children,
   defaultTheme = "system",
   storageKey = "hq-model-switch-theme",
+  syncNativeTheme = true,
 }: ThemeProviderProps) {
   const getInitialTheme = () => {
     if (typeof window === "undefined") {
@@ -113,7 +115,7 @@ export function ThemeProvider({
 
   // Sync native window theme (Windows/macOS title bar)
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (!syncNativeTheme || typeof window === "undefined") {
       return;
     }
 
@@ -141,7 +143,7 @@ export function ThemeProvider({
     return () => {
       isCancelled = true;
     };
-  }, [theme]);
+  }, [theme, syncNativeTheme]);
 
   const value = useMemo<ThemeContextValue>(
     () => ({

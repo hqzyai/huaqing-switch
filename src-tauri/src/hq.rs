@@ -2,12 +2,17 @@
 use crate::database::Database;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "desktop")]
 use std::sync::Arc;
+#[cfg(feature = "desktop")]
 use tauri::Manager;
+#[path = "hq/gateway.rs"]
 pub(crate) mod gateway;
+#[path = "hq/usage.rs"]
 pub(crate) mod usage;
 
 const STORE_KEY: &str = "hq.connections.v1";
+#[cfg(feature = "desktop")]
 pub struct HqState(pub Arc<Database>);
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -161,7 +166,11 @@ fn mutate(
     Ok(store.snapshot())
 }
 
-fn save(db: &Database, revision: u64, mut input: ConnectionInput) -> Result<Snapshot, String> {
+pub(crate) fn save(
+    db: &Database,
+    revision: u64,
+    mut input: ConnectionInput,
+) -> Result<Snapshot, String> {
     if !(1024..=2_000_000).contains(&input.context_window)
         || input.max_output_tokens == 0
         || input.max_output_tokens > input.context_window
@@ -242,16 +251,21 @@ fn save(db: &Database, revision: u64, mut input: ConnectionInput) -> Result<Snap
     })
 }
 
-#[tauri::command]
-pub fn hq_get_connections(state: tauri::State<'_, HqState>) -> Result<Snapshot, String> {
-    let conn = state
-        .0
+pub(crate) fn connections(db: &Database) -> Result<Snapshot, String> {
+    let conn = db
         .conn
         .lock()
         .map_err(|_| "无法锁定 HQ 连接存储".to_string())?;
     Ok(load(&conn)?.snapshot())
 }
 
+#[cfg(feature = "desktop")]
+#[tauri::command]
+pub fn hq_get_connections(state: tauri::State<'_, HqState>) -> Result<Snapshot, String> {
+    connections(&state.0)
+}
+
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn hq_save_connection(
     state: tauri::State<'_, HqState>,
@@ -261,6 +275,7 @@ pub fn hq_save_connection(
     save(&state.0, revision, connection)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn hq_select_connection(
     state: tauri::State<'_, HqState>,
@@ -270,7 +285,7 @@ pub fn hq_select_connection(
     select(&state.0, revision, &id)
 }
 
-fn select(db: &Database, revision: u64, id: &str) -> Result<Snapshot, String> {
+pub(crate) fn select(db: &Database, revision: u64, id: &str) -> Result<Snapshot, String> {
     mutate(db, revision, |store| {
         if !store.connections.iter().any(|c| c.id == id) {
             return Err("连接不存在".into());
@@ -280,6 +295,7 @@ fn select(db: &Database, revision: u64, id: &str) -> Result<Snapshot, String> {
     })
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn hq_delete_connection(
     state: tauri::State<'_, HqState>,
@@ -289,7 +305,7 @@ pub fn hq_delete_connection(
     remove(&state.0, revision, &id)
 }
 
-fn remove(db: &Database, revision: u64, id: &str) -> Result<Snapshot, String> {
+pub(crate) fn remove(db: &Database, revision: u64, id: &str) -> Result<Snapshot, String> {
     mutate(db, revision, |store| {
         let index = store
             .connections
@@ -305,6 +321,7 @@ fn remove(db: &Database, revision: u64, id: &str) -> Result<Snapshot, String> {
 }
 
 /// Early HQ-only startup: no legacy client recovery/import, scanning, auth or proxy restoration.
+#[cfg(feature = "desktop")]
 pub fn setup(app: &mut tauri::App, db: Arc<Database>) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(unix)]
     {
@@ -362,6 +379,7 @@ pub fn setup(app: &mut tauri::App, db: Arc<Database>) -> Result<(), Box<dyn std:
     Ok(())
 }
 
+#[cfg(feature = "desktop")]
 pub fn show(app: &tauri::AppHandle) {
     #[cfg(target_os = "macos")]
     crate::tray::apply_tray_policy(app, true);
@@ -397,6 +415,7 @@ mod tests {
         let json = serde_json::to_string(&snapshot).unwrap();
         assert!(!json.contains("test-secret"));
         assert!(snapshot.connections[0].api_key_configured);
+        #[cfg(feature = "desktop")]
         assert!(db.get_all_providers("codex").unwrap().is_empty());
         let id = snapshot.connections[0].id.clone();
         let mut edit = input();

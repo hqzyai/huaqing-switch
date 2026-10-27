@@ -2,11 +2,13 @@
 
 基于 [CC Switch](https://github.com/farion1231/cc-switch) 的独立品牌桌面应用，项目目录名为 **Huaqing Model Connection**。保留原项目的 Tauri 2、Rust、React 18 和 Tailwind 3 技术栈。
 
-当前应用只显示 **HQ Harness 连接管理与设置**，路由、聚合、其他客户端以及 MCP/Skills/会话/授权/用量等入口全部隐藏，托盘只保留 HQ Harness 与退出。旧的可见性设置和导航记录不能重新启用这些入口；原版实现仍保留在源码中。
+当前应用显示 **HQ Harness 连接管理、用量统计与设置**，路由、聚合、其他客户端以及 MCP/Skills/会话/授权等入口隐藏，托盘只保留 HQ Harness 与退出。旧的可见性设置和导航记录不能重新启用这些入口；原版实现仍保留在源码中。
 
 HQ 连接支持独立保存、编辑、删除与默认选择，列表不会返回已保存的 API Key。HQ-only 启动跳过旧客户端的导入、恢复和扫描。应用启动后在 `127.0.0.1:17621` 提供带鉴权的本机模型服务；HQHarness 自动发现并通过官方 Pi 适配器调用它，不需要填写地址或供应商密钥。支持 OpenAI Chat Completions、Responses 和 Anthropic Messages 的流式调用、工具调用及取消。
 
 使用顺序：启动 Huaqing Switch → 添加供应商连接并设为默认 → 启动 HQHarness 并新建会话。客户端隐藏模型配置，其他直连供应商会被拦截；Switch 不可用时显示明确错误。保存连接不代表上游验证成功。接入契约、运行规则及验收范围见 [HQHarness 接入说明](docs/huaqing-harness-integration.md)。
+
+Windows、macOS 使用桌面客户端；Linux 提供独立的无头服务与 HTTPS 网页管理入口，复用同一套连接、推理和用量实现，不依赖桌面显示服务。部署方式见 [Linux 部署说明](deploy/linux/README.md)，服务配置见 [server/README.md](server/README.md)。
 
 ## 开发
 
@@ -33,7 +35,7 @@ CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo t
 
 ## 品牌与数据
 
-- 产品：Huaqing Switch，版本 `0.1.0`，应用 ID `app.hqmodelswitch.desktop`。
+- 产品：Huaqing Switch，桌面版本 `0.1.1`，应用 ID `app.hqmodelswitch.desktop`。
 - 默认数据：`~/.hq-model-switch/`，数据库 `hq-model-switch.db`。
 - 深链：`hqmodelswitch://`；本机代理默认端口 `17621`。
 - 自动发现：当前用户主目录下的 `.huaqing-switch/connector.json`，只包含本机访问凭证，不包含供应商密钥。端口冲突会报错并允许重试。

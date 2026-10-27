@@ -1,0 +1,14 @@
+# CI artifacts must come from the same recorded source commit. Build the binary
+# on Debian bookworm (or an older compatible glibc), never on an arbitrary host.
+ARG RUNTIME_IMAGE=debian:bookworm-slim@sha256:ec31d744f83f4a73447ba045aaab9409997efe5cc706eca4890c1be36cc1606a
+FROM ${RUNTIME_IMAGE}
+ARG SOURCE_COMMIT
+LABEL org.opencontainers.image.title="Huaqing Switch Server" \
+      org.opencontainers.image.source="https://github.com/hqzyai/huaqing-switch" \
+      org.opencontainers.image.revision="${SOURCE_COMMIT}"
+WORKDIR /app
+COPY huaqing-switch-server /app/huaqing-switch-server
+COPY dist-server /app/dist-server
+COPY LICENSE /app/LICENSE
+EXPOSE 8080 17621
+ENTRYPOINT ["/app/huaqing-switch-server"]
