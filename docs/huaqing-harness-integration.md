@@ -105,18 +105,30 @@ node scripts/verify-harness-connector.mjs --harness-exe "$harnessExe" --harness-
 
 下载 Actions 产物后先核对 `SHA256SUMS.txt` 与 `package.json` 中的源码提交。安装可以使用 `msiexec /i <完整 MSI 路径> /qn /norestart CREATEDESKTOPSHORTCUT=0`；安装后仍须在目标 Windows 上核对版本、启动界面、本机服务和实际 HQHarness/Pi 调用。构建成功、安装成功与模型请求成功分别记录。未签名验收包不能作为正式签名发行包。
 
-本轮使用的 Windows 包与代码来源：
+### 0.1.1 用量统计升级（2026-10-27）
 
-| 项目 | 来源与验收状态 |
-| --- | --- |
-| Switch 已验收产品代码 | `6eed6592406fdf2f8271c8bda685f5e53c783748`；[主 CI 40302472033](https://github.com/hqzyai/huaqing-switch/actions/runs/40302472033) 的前端、Linux/Windows/macOS 后端及 WSL2 检查通过。后续 `0af7273` 仅更新验收文档。 |
-| Switch 0.1.0 MSI | 源码 `136609ac3d3a4d6b64af18b283864a4f46a6973d`；[Windows 打包 40292921395](https://github.com/hqzyai/huaqing-switch/actions/runs/40292921395) 成功。到上述产品代码仅增加联调验证脚本及 golden 测试修正，产品源码、依赖、资源和安装器配置相同。 |
-| HQHarness 当前代码 | `61788d465e95d8480fc16a59727e955461c487f7`；[Windows 完整验收 CI 40315304291](https://github.com/jiawenyao401/HQHarness/actions/runs/40315304291) 的构建、测试、原生验证和草稿交付核验通过。 |
-| 106 已安装 HQHarness 0.1.8 | 源码 `c26c526b491006db8bbb462011c44ed31aac95e4`；生产应用 ID 为 `app.hqharness.desktop`。到 `61788d4` 只改草稿交付脚本与对应测试，产品输入树相同。 |
+产品提交 `382dba631dc5ff2f9b8d1f04bde1ec8e417d4e32` 的 [主 CI 40439609050](https://github.com/hqzyai/huaqing-switch/actions/runs/40439609050) 全部通过，[Windows 打包 40439610412](https://github.com/hqzyai/huaqing-switch/actions/runs/40439610412) 成功。Windows x64 MSI 已经由 Mac 下载、核验、传至 106，并以退出码 0 从 0.1.0 升级到 0.1.1。MSI SHA256 为 `d9e92360597ad66bde81ca8068631932144a4b9b2d2abb1d4fb9ec9d04edb6b5`，安装后的 EXE SHA256 为 `5c32efb80503a9d0bf04a52855f0e9d697d63d22766df9c52b6161e22a5cf225`；安装身份、版本、资源及当前用户安装范围均已核对。
+
+已安装 EXE 的独立原生验收完成 9 次本地 fixture 请求、11 项检查。真实客户端用量页显示 9 次成功请求、输入 120、输出 55、总计 175、缓存读取 44、缓存写入 13 Token，缺失用量 1 次、完整用量 8 次，和持久化记录一致。重启保留、删除连接保留历史、鉴权拒绝不污染统计、响应字节保持不变均通过。详细统计口径见[限制与用量说明](hq-usage.md)。
+
+验收使用独立数据库，没有调用付费模型；生产连接配置保持不变。临时原生进程、数据库和传输服务均已清理，原有 Switch / HQHarness 已恢复运行，默认连接与模型清单已核对。HQHarness 0.1.8 沿用此前安装包，本次没有重新执行完整对话和 browser 验收。
+
+本地证据为 `validation/hq-usage/transfer/usage-installed.json`、`usage-native.json`、`usage-preflight.json` 及 `validation/hq-usage/gui-evidence.json`。实际验收安装包及脱敏报告已发布到 [Switch 0.1.1 预发布版](https://github.com/hqzyai/huaqing-switch/releases/tag/v0.1.1-acceptance.20261027)，版本标签固定到上述产品提交；后续文档提交不改变打包来源。
+
+### 此前 0.1.0 / HQHarness 0.1.8 的构建来源
+
+此前使用的 Windows 包与代码来源：
+
+| 项目                       | 来源与验收状态                                                                                                                                                                                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Switch 已验收产品代码      | `6eed6592406fdf2f8271c8bda685f5e53c783748`；[主 CI 40302472033](https://github.com/hqzyai/huaqing-switch/actions/runs/40302472033) 的前端、Linux/Windows/macOS 后端及 WSL2 检查通过。后续 `0af7273` 仅更新验收文档。                            |
+| Switch 0.1.0 MSI           | 源码 `136609ac3d3a4d6b64af18b283864a4f46a6973d`；[Windows 打包 40292921395](https://github.com/hqzyai/huaqing-switch/actions/runs/40292921395) 成功。到上述产品代码仅增加联调验证脚本及 golden 测试修正，产品源码、依赖、资源和安装器配置相同。 |
+| HQHarness 当前代码         | `61788d465e95d8480fc16a59727e955461c487f7`；[Windows 完整验收 CI 40315304291](https://github.com/jiawenyao401/HQHarness/actions/runs/40315304291) 的构建、测试、原生验证和草稿交付核验通过。                                                    |
+| 106 已安装 HQHarness 0.1.8 | 源码 `c26c526b491006db8bbb462011c44ed31aac95e4`；生产应用 ID 为 `app.hqharness.desktop`。到 `61788d4` 只改草稿交付脚本与对应测试，产品输入树相同。                                                                                              |
 
 已安装 Switch MSI 的 SHA256 为 `3b063a29476e4233673114db8453c9dcf84389ab47e1e52eb6e2a1d9d87e3ce9`；已安装 HQHarness NSIS 包的 SHA256 为 `8f564537c63d21993d4fcd00d239593e168f1d02478db7393823ffc91c63b9a8`。两者均在传输后校验并以退出码 0 安装。HQHarness 构建流程先交付草稿，上传后通过真实 release ID 检查源码、草稿标记及资产，避免未发布 tag 的 REST 404 造成误报。2026-10-27 应用户要求，已将两份实际验收的安装包发布为预发布版：[Switch 0.1.0](https://github.com/hqzyai/huaqing-switch/releases/tag/v0.1.0-acceptance.20261027)、[HQHarness 0.1.8](https://github.com/jiawenyao401/HQHarness/releases/tag/v0.1.8-acceptance.20261027)。均附 SHA256 和脱敏验收报告；HQHarness 仓库权限保持私有。
 
-### 106 已完成的验收
+### 此前 106 的 0.1.0 / HQHarness 0.1.8 验收
 
 - **Switch 正常启动和表单**：已安装 EXE 显示 0.1.0，本机服务监听回环 17621；连接编辑器可滚动到底部字段，保存按钮始终可见，托盘正常退出通过。证据为本地 `validation/windows-transfer/switch-installed-acceptance.json` 与 `switch-form-106.png`。浏览器尺寸回归另覆盖 1000×640、1100×650、1920×1080，包含键盘到达保存按钮。
 - **MSI 卸载及重装**：卸载和重装均退出 0。共享 Programs 目录中的任务专用哨兵文件内容保持不变，重装后 EXE 哈希与首次安装一致。证据为本地 `validation/windows-transfer/switch-uninstall-acceptance.json`；该回归验证此前危险的共享父目录通配删除规则已移除。
