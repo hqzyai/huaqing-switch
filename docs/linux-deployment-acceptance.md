@@ -13,7 +13,7 @@ Switch 服务提交为 `9e94c83c13bac8d3681ee4ceb7c79a029ecaa479`，最终 Team 
 - `huaqing-team-worker:0.2.1-rc.2-switch-207b4db`
 - `huaqing-team-edge:0.2.1-rc.2`
 
-镜像归档为 `huaqing-switch-hqharness-images-linux-amd64-20261027-207b4db.tar.gz`，大小 `585615102` 字节，SHA256 为 `983d2880071273074bc95b084ebb3564d982f4827498113a49f90795162f07ca`。gzip/tar 校验及实际 `docker image load` 通过，导入后四份镜像身份与导出前一致；镜像清单逐一记录来源和层。运行时数据库、用户卷及私密凭证文件不包含在镜像归档中。
+镜像归档为 `images/huaqing-switch-linux-x86-983d2880071273074bc95b084ebb3564d982f4827498113a49f90795162f07ca-20261027142416.tar.gz`，大小 `585615102` 字节，SHA256 为 `983d2880071273074bc95b084ebb3564d982f4827498113a49f90795162f07ca`。gzip/tar 校验及实际 `docker image load` 通过，导入后四份镜像身份与导出前一致；镜像清单逐一记录来源和层。运行时数据库、用户卷及私密凭证文件不包含在镜像归档中。
 
 ## 实际验证
 

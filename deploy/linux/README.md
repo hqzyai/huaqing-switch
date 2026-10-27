@@ -48,3 +48,5 @@ Compose 的容器 UID 0 仅用于上述 rootless daemon，映射到宿主非特�
 HQHarness 集成应保留原加密目录、用户身份、签名密钥、会话与工作区卷，并固定旧会话的模型版本。旧镜像与旧 worker 容器留作回滚；不要执行 `down -v` 或删除用户卷。具体集成代码和验收由 `integrations/harness-team/` 提供。
 
 离线镜像交付使用 `docker image save ... | gzip`，先写任务专用 `.part`，检查 gzip/tar、镜像平台、标签和 ID，再原子改名并附 SHA256。镜像归档不包含私密状态卷；恢复业务数据需单独保管上述备份。用专用 daemon 导入后再次核对镜像 ID，并执行健康、鉴权、模型目录及实际模拟推理验收。
+
+镜像归档统一保存为 `/home/ubuntu/Workspace/images/huaqing-switch-linux-x86-<sha256>-<timestamp>.tar.gz`。`sha256` 为最终 gzip 文件的完整 64 位小写 SHA256，`timestamp` 按北京时间使用 `YYYYMMDDHHmmss`。校验文件为归档全名追加 `.sha256`；镜像清单和交付说明沿用相同文件名前缀。重命名交付时同步所有当前路径引用，保持归档内容不变。
