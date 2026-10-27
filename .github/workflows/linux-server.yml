@@ -53,6 +53,8 @@ jobs:
       - run: cargo test --locked --manifest-path server/Cargo.toml
       - run: cargo clippy --locked --manifest-path server/Cargo.toml --all-targets -- -D warnings
       - run: pnpm typecheck
+      - run: pnpm exec vitest run tests/components/ServerApp.test.tsx tests/components/HqApp.test.tsx tests/lib/hq-server.test.ts
+      - run: node --test integrations/harness-team/tests/catalog.test.mjs
       - run: pnpm run build:server
       - run: cargo build --locked --release --manifest-path server/Cargo.toml
       - name: Stage Linux deployment artifacts

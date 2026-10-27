@@ -68,7 +68,9 @@ services:
     cpus: 0.5
 networks:
   front:
-    internal: true
+    # Rootless Docker does not publish host ports for a container attached only
+    # to an internal network. This dedicated bridge exposes only edge:18444.
+    internal: false
   harness:
     name: ${HQ_HARNESS_CONTROL_NETWORK:-huaqing-team-control}
     external: true

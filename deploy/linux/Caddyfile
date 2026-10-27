@@ -3,6 +3,7 @@
     auto_https disable_redirects
     persist_config off
     skip_install_trust
+    default_sni {$HQ_SWITCH_LAN_ADDRESS}
     servers {
         protocols h1 h2
     }

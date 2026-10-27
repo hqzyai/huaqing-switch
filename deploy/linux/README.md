@@ -35,6 +35,8 @@ docker compose -f deploy/linux/compose.yml up -d --no-build --wait
 
 Caddy 使用内部 CA 为局域网地址签发证书。导出新建 `edge-tls` 卷的 `/data/caddy/pki/authorities/local/root.crt`，核对后导入访问设备的受信任根证书库；保留 CA 的私钥卷用于续签。TLS 验收应使用 `curl --cacert <root.crt>`，不能用跳过证书校验代替。已有企业证书时可在入口层替换为组织管理的 TLS 配置。
 
+若宿主启用了入站防火墙，仅放行实际局域网网段到服务器 `18444/tcp`；不要为此关闭防火墙或扩大到公网。Compose 的端口绑定不能替代宿主防火墙规则。入口桥接网络保留端口发布能力；rootless Docker 中只连接 `internal` 网络的容器不会发布宿主端口。
+
 Compose 的容器 UID 0 仅用于上述 rootless daemon，映射到宿主非特权部署用户，使 0600 凭证和专用 TLS 卷无需放宽权限；同时根文件系统只读、移除全部 capabilities、禁止提权，并设置资源限制。不要原样迁移到 rootful daemon。
 
 ## 数据、升级与恢复
