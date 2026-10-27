@@ -16,7 +16,7 @@
     }
 }
 
-https://{$HQ_SWITCH_LAN_ADDRESS}:18444 {
+https://{$HQ_SWITCH_LAN_ADDRESS}:28001 {
     tls internal
     encode gzip
     request_body {

@@ -29,13 +29,13 @@ docker compose -f deploy/linux/compose.yml config --quiet
 docker compose -f deploy/linux/compose.yml up -d --no-build --wait
 ```
 
-把环境变量存入部署目录的私密环境文件，供重启和运维重复使用；不要把凭证本身写进环境变量或 Compose 文件。状态初始化会保留已有文件，拒绝不安全的权限或相同的两份凭证。服务默认在容器内监听 `8080` 管理接口、`17621` 推理接口，只有 Caddy 的 `18444` 绑定局域网；推理端口不发布到宿主。
+把环境变量存入部署目录的私密环境文件，供重启和运维重复使用；不要把凭证本身写进环境变量或 Compose 文件。状态初始化会保留已有文件，拒绝不安全的权限或相同的两份凭证。服务默认在容器内监听 `8080` 管理接口、`17621` 推理接口，只有 Caddy 的 `28001` 绑定局域网；推理端口不发布到宿主。
 
 首次登录使用 `$HQ_SWITCH_STATE_DIR/private/admin-token` 中的管理凭证，通过 SSH 私下读取。服务使用 HttpOnly / Secure / SameSite Cookie、同源 CSRF 校验、登录限流和会话过期；网页不会存储管理凭证。`inference-token` 只供 HQHarness 网关读取，不交给网页或 worker，两种凭证不能互用。
 
 Caddy 使用内部 CA 为局域网地址签发证书。导出新建 `edge-tls` 卷的 `/data/caddy/pki/authorities/local/root.crt`，核对后导入访问设备的受信任根证书库；保留 CA 的私钥卷用于续签。TLS 验收应使用 `curl --cacert <root.crt>`，不能用跳过证书校验代替。已有企业证书时可在入口层替换为组织管理的 TLS 配置。
 
-若宿主启用了入站防火墙，仅放行实际局域网网段到服务器 `18444/tcp`；不要为此关闭防火墙或扩大到公网。Compose 的端口绑定不能替代宿主防火墙规则。入口桥接网络保留端口发布能力；rootless Docker 中只连接 `internal` 网络的容器不会发布宿主端口。
+若宿主启用了入站防火墙，仅放行实际局域网网段到服务器 `28001/tcp`；不要为此关闭防火墙或扩大到公网。Compose 的端口绑定不能替代宿主防火墙规则。入口桥接网络保留端口发布能力；rootless Docker 中只连接 `internal` 网络的容器不会发布宿主端口。
 
 Compose 的容器 UID 0 仅用于上述 rootless daemon，映射到宿主非特权部署用户，使 0600 凭证和专用 TLS 卷无需放宽权限；同时根文件系统只读、移除全部 capabilities、禁止提权，并设置资源限制。不要原样迁移到 rootful daemon。
 

@@ -18,7 +18,7 @@ services:
       HQ_SWITCH_WEB_BIND: 0.0.0.0:8080
       HQ_SWITCH_GATEWAY_BIND: 0.0.0.0:17621
       HQ_SWITCH_GATEWAY_URL: http://huaqing-switch:17621
-      HQ_SWITCH_PUBLIC_ORIGIN: https://${HQ_SWITCH_LAN_ADDRESS:?Set the LAN address}:18444
+      HQ_SWITCH_PUBLIC_ORIGIN: https://${HQ_SWITCH_LAN_ADDRESS:?Set the LAN address}:28001
       HQ_SWITCH_DATA_DIR: /data
       HQ_SWITCH_STATIC_DIR: /app/dist-server
       HQ_SWITCH_ADMIN_TOKEN_FILE: /run/secrets/admin-token
@@ -55,7 +55,7 @@ services:
     environment:
       HQ_SWITCH_LAN_ADDRESS: ${HQ_SWITCH_LAN_ADDRESS}
     ports:
-      - ${HQ_SWITCH_LAN_ADDRESS}:18444:18444
+      - ${HQ_SWITCH_LAN_ADDRESS}:28001:28001
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - edge-tls:/data
@@ -69,7 +69,7 @@ services:
 networks:
   front:
     # Rootless Docker does not publish host ports for a container attached only
-    # to an internal network. This dedicated bridge exposes only edge:18444.
+    # to an internal network. This dedicated bridge exposes only edge:28001.
     internal: false
   harness:
     name: ${HQ_HARNESS_CONTROL_NETWORK:-huaqing-team-control}
