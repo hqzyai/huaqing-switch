@@ -312,6 +312,7 @@ def apply(plan, path):
             require(fingerprint(Path(source).read_bytes()) == original["fingerprint"], "canonical source changed after preparation")
         require(fingerprint(private_read(Path(data["candidate"]))) == data["nextFingerprint"], "private Compose overlay changed after preparation")
         require(fingerprint(private_read(Path(data["rollbackImageCandidate"]))) == data["rollbackImageFingerprint"], "private rollback image pin changed after preparation")
+    design_state(plan["applications"]["design"]["snapshot"], {"action": "preflight", "backupDirectory": plan["designBackupDirectory"]})
     markers = sculpture_markers()
     require(markers["activeTextRuns"] == 0 and markers["activeProviderJobs"] == 0, "Sculpture model jobs are active")
     try:

@@ -70,7 +70,7 @@ llm-pi-ai:
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
   -s integrations/multi-app/design-sculpture/tests -p 'test_*.py' -v
-node --test integrations/multi-app/design-sculpture/tests/test_design_state_atomic.mjs
+node --test integrations/multi-app/design-sculpture/tests/test_design_state_*.mjs
 node --experimental-vm-modules --experimental-import-meta-resolve \
   integrations/multi-app/design-sculpture/tests/verify-design.mjs
 ```
@@ -94,5 +94,25 @@ Design 测试必须在候选 Design 镜像中运行，读取实际安装模块�
 多步操作写入私密 journal；命令中断后先检查计划 `phase` / `touched`，再按同一计划回滚，不能重新生成计划掩盖中间状态。所有正式镜像必须使用已提交源码的完整 Git SHA；操作脚本更新不改变两个 overlay 的已验证源码字节。
 
 `prepare`、`apply`、`rollback` 和注册共用服务器的导入锁。配置写入使用独立随机临时名，失败只清理本次临时文件；Sculpture chat 目录尚未写完时，回滚允许清理已知文件的子集，逐个验证内容后再删除，未知或改写文件仍会阻止清理。更改准备计划格式后，未应用的旧计划必须标记作废并重新准备；原调用回执要保留，不能借重新准备盲目重复计费请求。
+
+Design 在停服务前只读核对原配置、项目、会话绑定和活动任务，停服务后写入前再次核对，准备后新增会话会使切换提前停止。回滚只恢复已知的两份 chat 文件，按回滚开始时的数据库标记及媒体、偏好文件验证，保留准备后合法新增的数据；未知 chat 修改和损坏备份均在写入前拒绝。不得为通过核验而恢复整份旧业务数据库。
+
+## 已授权的失效配置修复
+
+本服务器的原 Design 文本密钥返回 401，Sculpture 旧 `deepseek-v4-flash` 返回 404。用户已于 2026-10-28 选择使用现有有效配置完成迁移：Design 两个 Qwen 连接只替换为它自身媒体配置中已有的有效 DashScope 凭据，原媒体文件及旧 ref 均不改；Sculpture 的独立 DeepSeek 连接仅复制既有默认连接的上游 URL、凭据和 `deepseek-v4.1-flash` 型号，保留客户端别名、连接 ID、名称与预算。默认连接 revision 1 和旧 Harness 别名不改。
+
+以下工具只针对源码中固定的本次服务器连接及私密计划，在服务器内运行；它们不是导入任意来源的通用入口：
+
+```sh
+python3 repair-and-probe.py repair
+python3 repair-and-probe.py probe
+python3 repair-and-probe.py audit
+python3 repair-and-probe.py helper
+python3 promote-acceptance.py
+```
+
+`repair` 保存私密 SQLite 快照和操作日志，每一步用全量预期配置及 CAS 核对精确字段变化，拒绝并发修改。`probe` 仅对原失败的三个文本请求各重试一次，复用原成功 Qwen 文本证据；另用一张合成 PNG 验证现有 Qwen 图片输入、文字输出能力，通过后才把该卡的 `supportsImages` 设为 true。`helper` 单独调用实际安装的 `chat_payload`，验证原 `max_completion_tokens` 和 `json_object` 结构化返回兼容性，避免简单文本探针代替规划器请求格式验证。请求最多 64 输出 token，使用合成数据，每次先持久记录不可覆盖的 attempt，零重试；失败或不确定结果必须审查，不能删除 attempt 以重发。
+
+注册回执的四个 ID、应用、模型和固定内网 URL 均须匹配源码约束；请求地址直接从已核对的 ID 生成，不向回执提供的任意地址发送凭据。`audit` 在提升前从初始快照严格重建所有已发生的字段变化，不调用模型。`promote-acceptance.py` 核对真实请求、实际 helper、原证据和计划指纹后，才提升正式切换所需的验收回执；原失败回执完整留在私密归档，复用成功结果的证据引用改指该归档。提升不启动容器，正式切换仍执行前述 `migrate.py apply`。提升后原 canonical 已成为新验收，不能把只适用于提升前的 `audit` 当成持续监控命令。
 
 Sculpture 保留 live `DEMO_PASSWORD` 的 override 会优先于 `.env`。将来若要主动应用 `.env` 中的新登录密码，必须先审查并修改或移除此保留项；不可把 `.env` 改动误当成已经生效。私密 Compose 目录仍被运行中容器引用时必须保留，不能作为普通旧备份清理。

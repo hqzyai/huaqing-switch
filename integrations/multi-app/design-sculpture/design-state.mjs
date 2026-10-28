@@ -71,21 +71,38 @@ try {
     console.log(JSON.stringify(metadata));
   } else {
     const metadata = JSON.parse(fs.readFileSync(path.join(directory, 'metadata.json'), 'utf8'));
-    assert.equal(hash(read('media')), metadata.beforeHashes.media);
-    assert.equal(hash(read('app')), metadata.beforeHashes.app);
-    if (input.action === 'apply') {
-      for (const name of ['settings', 'credentials']) assert.equal(hash(read(name)), metadata.beforeHashes[name]);
-      assert.equal(markers().activeTextRows, 0);
-      atomic(files.credentials, fs.readFileSync(path.join(directory, 'credentials.next')));
-      atomic(files.settings, fs.readFileSync(path.join(directory, 'settings.next')));
-    } else if (input.action === 'rollback') {
+    assert(['preflight', 'apply', 'rollback', 'verify'].includes(input.action));
+    const currentMarkers = markers();
+    const currentNonTextHashes = Object.fromEntries(['media', 'app'].map((name) => [name, hash(read(name))]));
+    let expectedChatHashes, expectedMarkers, expectedNonTextHashes;
+    if (input.action === 'rollback') {
       for (const name of ['settings', 'credentials']) assert([metadata.beforeHashes[name], metadata.nextHashes[name]].includes(hash(read(name))));
-      atomic(files.credentials, fs.readFileSync(path.join(directory, 'credentials.before')));
-      atomic(files.settings, fs.readFileSync(path.join(directory, 'settings.before')));
-    } else assert.equal(input.action, 'verify');
-    const expected = input.action === 'rollback' ? metadata.beforeHashes : metadata.nextHashes;
-    for (const name of ['settings', 'credentials']) assert.equal(hash(read(name)), expected[name]);
-    assert.deepEqual(markers(), metadata.markers);
-    console.log(JSON.stringify({ passed: true, mediaUnchanged: true, appPreferencesUnchanged: true, oldCredentialRefsPreserved: true, sessionBindingsUnchanged: true }));
+      const before = Object.fromEntries(['settings', 'credentials'].map((name) => [name, fs.readFileSync(path.join(directory, name + '.before'))]));
+      for (const name of ['settings', 'credentials']) assert.equal(hash(before[name]), metadata.beforeHashes[name]);
+      atomic(files.credentials, before.credentials);
+      atomic(files.settings, before.settings);
+      expectedChatHashes = metadata.beforeHashes;
+      expectedMarkers = currentMarkers;
+      expectedNonTextHashes = currentNonTextHashes;
+    } else {
+      assert.deepEqual(currentNonTextHashes, { media: metadata.beforeHashes.media, app: metadata.beforeHashes.app });
+      assert.deepEqual(currentMarkers, metadata.markers);
+      if (input.action === 'preflight' || input.action === 'apply') {
+        for (const name of ['settings', 'credentials']) assert.equal(hash(read(name)), metadata.beforeHashes[name]);
+        if (input.action === 'apply') {
+          const next = Object.fromEntries(['settings', 'credentials'].map((name) => [name, fs.readFileSync(path.join(directory, name + '.next'))]));
+          for (const name of ['settings', 'credentials']) assert.equal(hash(next[name]), metadata.nextHashes[name]);
+          atomic(files.credentials, next.credentials);
+          atomic(files.settings, next.settings);
+        }
+      }
+      expectedChatHashes = input.action === 'preflight' ? metadata.beforeHashes : metadata.nextHashes;
+      expectedMarkers = metadata.markers;
+      expectedNonTextHashes = { media: metadata.beforeHashes.media, app: metadata.beforeHashes.app };
+    }
+    for (const name of ['settings', 'credentials']) assert.equal(hash(read(name)), expectedChatHashes[name]);
+    for (const name of ['media', 'app']) assert.equal(hash(read(name)), expectedNonTextHashes[name]);
+    assert.deepEqual(markers(), expectedMarkers);
+    console.log(JSON.stringify({ passed: true, mediaUnchanged: true, appPreferencesUnchanged: true, oldCredentialRefsPreserved: true, sessionBindingsUnchanged: true, stateReference: input.action === 'rollback' ? 'rollback-start' : 'preparation' }));
   }
 } finally { database.close(); }
