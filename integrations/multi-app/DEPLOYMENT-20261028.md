@@ -4,13 +4,15 @@
 
 | 应用 | 当前状态 | 证据和限制 |
 | --- | --- | --- |
-| Knowledge :28002 | 文本已切换 | 原 `ragflow-chat` ID 保留，默认使用既有 `deepseek-v4.1-flash`；已安装适配器的一次请求返回 200，统计 53 输入 / 12 输出 token，匹配 Switch 持久记录；无需重启 |
+| Knowledge :28002 | 文本已切换；Embedding 已独立修复 | 文本默认使用 Switch 的 `deepseek-v4.1-flash`；Embedding 按后续授权直连指定 Maas 的 `qwen3.7-text-embedding`，实测 1024 维，原模型 ID 和知识库引用保留；无需重启 |
 | Harness :28003 | 继续使用 Switch | 实际目录 9 服务 / 9 模型，9 路由可解析；原默认连接 revision 1、旧别名和两个会话指纹保留；未重启 worker，也未重复调用模型 |
 | Construction :28006 | 现有 Chat/VLM 已切换 | `qwen3-vl-plus` 不变；合成文本返回 200，统计 13 输入 / 3 输出 token；合成图片正确识别红色方块，统计 86 / 3；仅重建 wvp，2298 个原历史文件及持久配置指纹保持，YOLO 与其他容器保持 |
 | Design :28005 | 已修复并切换 | 按用户选择，用该应用自身已有的有效 DashScope 凭据修复两个文本连接；原 Qwen 名称、模型 ID、媒体配置和旧凭据 ref 保留；两个真实文本请求均为 200，分别统计 13 / 1 和 30 / 1 token |
 | Sculpture :28007 | 已修复并切换 | 原 DeepSeek 客户端别名保留，中央上游改为既有 `deepseek-v4.1-flash`；Qwen 合成图片识别通过，统计 104 / 2；实际已安装 helper 的 JSON 结构化响应通过，统计 14 / 6；媒体环境、任务与会话保留 |
 
-Knowledge 原聊天池的三个备选已独立导入 Switch，未重新建立负载均衡池，也未替换指定默认模型；这三个备选没有逐一发送生成请求。Embedding 保持原配置，其中 `127.0.0.1:14001` 在容器内不可达是迁移前已有问题；本次未修复或验收完整 RAG 检索。Construction 和 Sculpture 的图片输入验收仅使用合成 PNG，没有发送摄像头或业务图片，也未执行生图、视频、3D 或 YOLO 任务。
+Knowledge 原聊天池的三个备选已独立导入 Switch，未重新建立负载均衡池，也未替换指定默认模型；这三个备选没有逐一发送生成请求。后续用户授权修复 Embedding：替换不可达的容器 localhost 地址及代理专用旧别名，直连用户指定的 Maas API，继续使用原路由同型号 `qwen3.7-text-embedding`。按明确授权抽取 5 份文档的标题及正文共 10 条输入，按原清理、截断和标题权重重建，最低余弦相似度为 0.999997；原 104 份文档、828 条向量、索引映射与 sequence 保持不变。实际已配置 factory 返回有效 1024 维向量，复用该合成向量只读 kNN 命中 3 条，未增加外发业务文本。完整 RAG 问答质量未验收，4 个历史解析失败任务没有自动重跑。细节见 `knowledge/README-embedding-configuration.md`。
+
+Embedding 继续由 Knowledge 直接调用，不经过 Switch，不新增 Switch 协议。Construction 和 Sculpture 的图片输入验收仅使用合成 PNG，没有发送摄像头或业务图片，也未执行生图、视频、3D 或 YOLO 任务。
 
 Design / Sculpture 的原失效证据完整归档。修复后只重试原失败的三个文本请求，原成功 Qwen 文本回执直接复用；另分别执行一项 Qwen 合成图片验收和一项 DeepSeek 实际 helper JSON 验收。每次先持久保留 attempt，全部零重试。Sculpture Qwen 的图片能力验证通过后才将对应 Switch 卡的 `supportsImages` 改为 true；默认 DeepSeek 连接仍为 revision 1，原 Harness 会话绑定不变。
 

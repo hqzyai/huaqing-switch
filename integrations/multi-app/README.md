@@ -6,13 +6,15 @@
 
 | 应用 | 持久接入方式 | 保留范围 |
 | --- | --- | --- |
-| Knowledge | 新增聊天实例，只重新关联原聊天模型 ID | 原 Embedding 实例、向量、默认和工作流引用不变；默认复用已有 DeepSeek V4.1 Flash |
+| Knowledge | 新增聊天实例，只重新关联原聊天模型 ID | 文本默认复用已有 DeepSeek V4.1 Flash；Embedding 后续独立修复、保留原向量和 ID，详见专项说明 |
 | Harness | 继续已有 Team 目录与 worker 适配器 | 原连接版本、身份、会话和数据卷不变 |
 | Design | 原 Pi 模型项覆盖独立 baseURL，保持 provider/model ID | 原媒体文件与会话 ID 不变 |
 | Sculpture | 统一聊天 helper 读取独立路由映射和机器凭证 | 原 DashScope 媒体、Tripo、上传和业务数据不变 |
 | Construction | 同时更新 VLM 环境文件和活跃 provider 源，仅重建 wvp | YOLO、detector、流媒体、数据库和全部数据挂载保留 |
 
 各子目录包含固定基线、可复现补丁、迁移前保护条件和回滚步骤。真实密钥仅在服务器读取、备份与迁移，不进入 Git、Docker 层或离线镜像包。配置导入不得把已经指向 Switch 的应用地址当作上游再次导入。模型业务数据使用一致快照，修改前后核对保护指纹；不得用 `down -v` 或空目录替换业务挂载。
+
+Knowledge 的后续 Embedding 修复使用其已有 OpenAI-compatible 适配器直连指定 Maas API；它不属于 Switch 的协议或模型目录。独立配置、凭据证据、旧向量兼容性验证及回滚见 `knowledge/README-embedding-configuration.md`，不能通过放松原文本迁移工具的历史保护完成。
 
 ## 网络和验证
 

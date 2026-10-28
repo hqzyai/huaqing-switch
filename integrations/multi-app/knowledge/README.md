@@ -2,6 +2,8 @@
 
 此工具只迁移 `192.168.2.11:28002` 的现有 `ragflow-chat`。Embedding、重排、语音、图像以及知识库向量不在迁移范围内。所有操作在 `hqzyai-agentos-workstation-001` 的 `ubuntu` 账户执行；公开脚本可安装到 `/home/ubuntu/Workspace/huaqing-switch/ops/multi-app/knowledge/`，不包含密钥或数据库。迁移与备选导入分开执行、分别备份和回滚。
 
+2026-10-28 后续单独授权的 Embedding 修复见 [Embedding 配置迁移](README-embedding-configuration.md) 和 [实际适配器回归](README-embedding-verification.md)：Knowledge 直连指定 Maas 的 `qwen3.7-text-embedding`，不经过 Switch。该变更保留原模型 ID、知识库引用及 828 个旧向量。原聊天迁移快照仍保持不可变，其 Embedding 保护摘要会因此产生预期差异，不应放松旧校验；聊天无回归由本次独立前后保护及实际 factory 复核证明。
+
 ## 已核实的现状和目标
 
 Knowledge 容器为 rootful Docker 的 `ragflow-workspace-ragflow-cpu-1`，配置在 `/ragflow/conf/service_conf.yaml`。模型使用 MySQL 的 `tenant_model_provider` / `tenant_model_instance` / `tenant_model`，旧 `tenant_llm` 为空。原 `agentos` 实例共用聊天和向量配置；改它的地址会误迁向量，所以新增 `huaqing-switch-text` 实例，只将原聊天模型的 `instance_id` 关联到新实例，保持聊天模型 ID、其他模型、原实例、租户默认值、知识库、对话和工作流记录不变。
