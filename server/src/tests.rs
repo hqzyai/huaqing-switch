@@ -40,6 +40,307 @@ async fn value(response: Response) -> Value {
 fn connection(url: &str) -> Value {
     json!({"name":"fixture","protocol":"openai-chat","baseUrl":url,"model":"fixture-model","apiKey":"upstream-secret-never-in-http-admin-results","contextWindow":1000000,"maxOutputTokens":393216,"supportsImages":false})
 }
+
+#[tokio::test]
+async fn stable_services_use_current_model_without_changing_pinned_connectors() {
+    use std::sync::Mutex;
+    for (protocol, operation) in [
+        ("openai-chat", "chat/completions"),
+        ("openai-responses", "responses"),
+        ("anthropic", "messages"),
+    ] {
+        let observed = Arc::new(Mutex::new(Vec::<(String, HeaderMap, Value)>::new()));
+        let captured = observed.clone();
+        let upstream = Router::new().fallback(move |request: axum::extract::Request| {
+            let captured = captured.clone();
+            async move {
+                let (parts, body) = request.into_parts();
+                let payload: Value = serde_json::from_slice(&to_bytes(body, 4096).await.unwrap()).unwrap();
+                captured.lock().unwrap().push((parts.uri.path().into(), parts.headers, payload));
+                Json(json!({"usage":{"prompt_tokens":3,"completion_tokens":2,"input_tokens":3,"output_tokens":2},"choices":[]}))
+            }
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move { axum::serve(listener, upstream).await.unwrap() });
+        let (_temp, app) = fixture();
+        let mut input = connection(&format!("http://{address}/v1"));
+        input["protocol"] = json!(protocol);
+        input["maxOutputTokens"] = json!(32);
+        let snapshot = value(
+            app.web()
+                .oneshot(command_request(
+                    "hq_save_connection",
+                    json!({"revision":0,"connection":input}),
+                    &app.config.admin_token,
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        let id = snapshot["connections"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let path = format!("/hq/services/{id}/v1/{operation}");
+        let request = |path: &str, model: &str| {
+            let payload = if protocol == "openai-responses" {
+                json!({"model":model,"input":"fixture","max_output_tokens":16})
+            } else {
+                json!({"model":model,"messages":[{"role":"user","content":"fixture"}],"max_tokens":16})
+            };
+            Request::builder()
+                .method("POST")
+                .uri(path)
+                .header("host", "switch.test:17621")
+                .header(
+                    "authorization",
+                    format!("Bearer {}", app.config.inference_token),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(payload.to_string()))
+                .unwrap()
+        };
+        let response = hq::gateway::router(app.gateway.clone())
+            .oneshot(request(&path, "application-existing-alias"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        to_bytes(response.into_body(), 4096).await.unwrap();
+        input["id"] = json!(id);
+        input["model"] = json!("centrally-changed-model");
+        input["apiKey"] = json!("rotated-provider-fixture");
+        let updated = app
+            .web()
+            .oneshot(command_request(
+                "hq_save_connection",
+                json!({"revision":1,"connection":input}),
+                &app.config.admin_token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(updated.status(), StatusCode::OK);
+        let old_path = format!("/hq/connections/{id}/1/v1/{operation}");
+        let stale = hq::gateway::router(app.gateway.clone())
+            .oneshot(request(&old_path, &format!("hq-{id}-v1")))
+            .await
+            .unwrap();
+        assert_eq!(stale.status(), StatusCode::CONFLICT);
+        let current = hq::gateway::router(app.gateway.clone())
+            .oneshot(request(&path, "application-existing-alias"))
+            .await
+            .unwrap();
+        assert_eq!(current.status(), StatusCode::OK);
+        to_bytes(current.into_body(), 4096).await.unwrap();
+        {
+            let rows = observed.lock().unwrap();
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0].0, format!("/v1/{operation}"));
+            assert_eq!(rows[0].2["model"], "fixture-model");
+            assert_eq!(rows[1].2["model"], "centrally-changed-model");
+            let header = if protocol == "anthropic" {
+                "x-api-key"
+            } else {
+                "authorization"
+            };
+            let expected = if protocol == "anthropic" {
+                "rotated-provider-fixture".to_owned()
+            } else {
+                "Bearer rotated-provider-fixture".to_owned()
+            };
+            assert_eq!(rows[1].1[header], expected);
+            assert!(!rows[1].2.to_string().contains(&app.config.inference_token));
+        }
+        let models = hq::gateway::router(app.gateway.clone())
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/hq/services/{id}/v1/models"))
+                    .header("host", "switch.test:17621")
+                    .header(
+                        "authorization",
+                        format!("Bearer {}", app.config.inference_token),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(models.headers()["cache-control"], "no-store");
+        assert_eq!(
+            value(models).await["data"][0]["id"],
+            "centrally-changed-model"
+        );
+        task.abort();
+    }
+}
+
+#[tokio::test]
+async fn stable_services_keep_roles_origin_host_protocol_limits_and_removal_checks() {
+    let (_temp, app) = fixture();
+    let snapshot = value(
+        app.web()
+            .oneshot(command_request(
+                "hq_save_connection",
+                json!({"revision":0,"connection":connection("https://not-contacted.invalid/v1")}),
+                &app.config.admin_token,
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let id = snapshot["connections"][0]["id"].as_str().unwrap();
+    for (token, host, origin, operation, model, output, status) in [
+        (
+            app.config.admin_token.as_str(),
+            "switch.test:17621",
+            None,
+            "chat/completions",
+            json!("legacy"),
+            1,
+            StatusCode::UNAUTHORIZED,
+        ),
+        (
+            app.config.inference_token.as_str(),
+            "wrong-host",
+            None,
+            "chat/completions",
+            json!("legacy"),
+            1,
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            app.config.inference_token.as_str(),
+            "switch.test:17621",
+            Some("https://browser.invalid"),
+            "chat/completions",
+            json!("legacy"),
+            1,
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            app.config.inference_token.as_str(),
+            "switch.test:17621",
+            None,
+            "responses",
+            json!("legacy"),
+            1,
+            StatusCode::CONFLICT,
+        ),
+        (
+            app.config.inference_token.as_str(),
+            "switch.test:17621",
+            None,
+            "chat/completions",
+            Value::Null,
+            1,
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            app.config.inference_token.as_str(),
+            "switch.test:17621",
+            None,
+            "chat/completions",
+            json!("legacy"),
+            393217,
+            StatusCode::BAD_REQUEST,
+        ),
+    ] {
+        let mut request = Request::builder()
+            .method("POST")
+            .uri(format!("/hq/services/{id}/v1/{operation}"))
+            .header("host", host)
+            .header("authorization", format!("Bearer {token}"));
+        if let Some(origin) = origin {
+            request = request.header("origin", origin);
+        }
+        let response = hq::gateway::router(app.gateway.clone())
+            .oneshot(
+                request
+                    .body(Body::from(
+                        json!({"model":model,"max_tokens":output}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), status);
+    }
+    let double_budget = hq::gateway::router(app.gateway.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/hq/services/{id}/v1/chat/completions"))
+                .header("host", "switch.test:17621")
+                .header(
+                    "authorization",
+                    format!("Bearer {}", app.config.inference_token),
+                )
+                .body(Body::from(
+                    json!({"model":"legacy","max_completion_tokens":1,"max_tokens":393217})
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(double_budget.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app.web()
+            .oneshot(command_request(
+                "hq_delete_connection",
+                json!({"revision":1,"id":id}),
+                &app.config.admin_token
+            ))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK
+    );
+    for operation in ["models", "chat/completions"] {
+        let response = hq::gateway::router(app.gateway.clone())
+            .oneshot(
+                Request::builder()
+                    .method(if operation == "models" { "GET" } else { "POST" })
+                    .uri(format!("/hq/services/{id}/v1/{operation}"))
+                    .header("host", "switch.test:17621")
+                    .header(
+                        "authorization",
+                        format!("Bearer {}", app.config.inference_token),
+                    )
+                    .body(Body::from(json!({"model":"legacy"}).to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+    }
+}
+
+#[tokio::test]
+async fn stable_services_reject_provider_urls_pointing_to_the_public_switch() {
+    let (_temp, app) = fixture();
+    let snapshot = value(app.web().oneshot(command_request("hq_save_connection",
+        json!({"revision":0,"connection":connection("https://switch.example/model-api/hq/services/recursive/v1")}),
+        &app.config.admin_token)).await.unwrap()).await;
+    let id = snapshot["connections"][0]["id"].as_str().unwrap();
+    let response = hq::gateway::router(app.gateway.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/hq/services/{id}/v1/chat/completions"))
+                .header("host", "switch.test:17621")
+                .header(
+                    "authorization",
+                    format!("Bearer {}", app.config.inference_token),
+                )
+                .body(Body::from(json!({"model":"legacy"}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(value(response).await["error"]["code"], "GATEWAY_LOOP");
+}
 #[tokio::test]
 async fn web_whitelist_roles_csrf_cookie_and_session_logout() {
     let (_temp, app) = fixture();

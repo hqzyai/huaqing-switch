@@ -1,0 +1,6 @@
+ARG BASE_IMAGE=quyang-creative/ai:20261010
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT
+LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}" \
+      org.hqzyai.switch.integration="sculpture-text-model-routing"
+COPY app/ /srv/quyang-ai/app/

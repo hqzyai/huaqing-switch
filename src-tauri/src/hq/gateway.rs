@@ -39,6 +39,7 @@ struct Inner {
     bind: SocketAddr,
     endpoint: String,
     authority: String,
+    public_origins: Vec<url::Url>,
     token: String,
     port: u16,
     client: reqwest::Client,
@@ -106,13 +107,20 @@ impl Gateway {
                 uuid::Uuid::new_v4().simple(),
                 uuid::Uuid::new_v4().simple()
             ),
+            Vec::new(),
         )
     }
 
     /// Explicit deployment policy. Desktop always uses the loopback constructor above.
     #[cfg(not(feature = "desktop"))]
-    pub fn server(db: Arc<Database>, bind: SocketAddr, endpoint: String, token: String) -> Self {
-        Self::configured(db, None, bind, endpoint, token)
+    pub fn server(
+        db: Arc<Database>,
+        bind: SocketAddr,
+        endpoint: String,
+        token: String,
+        public_origins: Vec<url::Url>,
+    ) -> Self {
+        Self::configured(db, None, bind, endpoint, token, public_origins)
     }
 
     fn configured(
@@ -121,6 +129,7 @@ impl Gateway {
         bind: SocketAddr,
         endpoint: String,
         token: String,
+        public_origins: Vec<url::Url>,
     ) -> Self {
         let authority = endpoint
             .trim_start_matches("http://")
@@ -132,6 +141,7 @@ impl Gateway {
             directory,
             bind,
             authority,
+            public_origins,
             endpoint,
             port: bind.port(),
             token,
@@ -287,7 +297,7 @@ impl Gateway {
 }
 
 pub fn router(gateway: Gateway) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/hq/manifest", get(manifest))
         .route(
             "/hq/connections/:id/:revision/v1/chat/completions",
@@ -297,8 +307,16 @@ pub fn router(gateway: Gateway) -> Router {
             "/hq/connections/:id/:revision/v1/responses",
             post(responses),
         )
-        .route("/hq/connections/:id/:revision/v1/messages", post(messages))
-        .with_state(gateway)
+        .route("/hq/connections/:id/:revision/v1/messages", post(messages));
+    // Deployed services keep a stable connection ID; desktop connectors retain
+    // their original revision-pinned contract and expose no service routes.
+    #[cfg(not(feature = "desktop"))]
+    let router = router
+        .route("/hq/services/:id/v1/models", get(service_models))
+        .route("/hq/services/:id/v1/chat/completions", post(service_chat))
+        .route("/hq/services/:id/v1/responses", post(service_responses))
+        .route("/hq/services/:id/v1/messages", post(service_messages));
+    router.with_state(gateway)
 }
 
 fn model_id(connection: &Connection) -> String {
@@ -339,21 +357,76 @@ async fn chat(
     Path((id, rev)): Path<(String, u64)>,
     req: axum::extract::Request,
 ) -> Response {
-    forward(g, id, rev, Protocol::OpenaiChat, req).await
+    forward(g, id, Some(rev), Protocol::OpenaiChat, req).await
 }
 async fn responses(
     State(g): State<Gateway>,
     Path((id, rev)): Path<(String, u64)>,
     req: axum::extract::Request,
 ) -> Response {
-    forward(g, id, rev, Protocol::OpenaiResponses, req).await
+    forward(g, id, Some(rev), Protocol::OpenaiResponses, req).await
 }
 async fn messages(
     State(g): State<Gateway>,
     Path((id, rev)): Path<(String, u64)>,
     req: axum::extract::Request,
 ) -> Response {
-    forward(g, id, rev, Protocol::Anthropic, req).await
+    forward(g, id, Some(rev), Protocol::Anthropic, req).await
+}
+
+#[cfg(not(feature = "desktop"))]
+async fn service_models(
+    State(gateway): State<Gateway>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(error) = gateway.authorize(&headers) {
+        return error.into_response();
+    }
+    let store = match gateway.store().await {
+        Ok(store) => store,
+        Err(error) => return error,
+    };
+    let Some(connection) = store.connections.into_iter().find(|c| c.id == id) else {
+        return error(
+            StatusCode::CONFLICT,
+            "CONNECTION_REMOVED",
+            "此模型连接已删除",
+        );
+    };
+    let mut response = Json(json!({"object":"list","data":[{
+        "id":connection.model,"object":"model","owned_by":"huaqing-switch"
+    }]}))
+    .into_response();
+    response
+        .headers_mut()
+        .insert("cache-control", "no-store".parse().unwrap());
+    response
+}
+
+#[cfg(not(feature = "desktop"))]
+async fn service_chat(
+    State(g): State<Gateway>,
+    Path(id): Path<String>,
+    req: axum::extract::Request,
+) -> Response {
+    forward(g, id, None, Protocol::OpenaiChat, req).await
+}
+#[cfg(not(feature = "desktop"))]
+async fn service_responses(
+    State(g): State<Gateway>,
+    Path(id): Path<String>,
+    req: axum::extract::Request,
+) -> Response {
+    forward(g, id, None, Protocol::OpenaiResponses, req).await
+}
+#[cfg(not(feature = "desktop"))]
+async fn service_messages(
+    State(g): State<Gateway>,
+    Path(id): Path<String>,
+    req: axum::extract::Request,
+) -> Response {
+    forward(g, id, None, Protocol::Anthropic, req).await
 }
 
 struct RequestGuard {
@@ -460,7 +533,7 @@ fn request_chat_usage(payload: &mut Value) {
 async fn forward(
     gateway: Gateway,
     id: String,
-    revision: u64,
+    revision: Option<u64>,
     protocol: Protocol,
     request: axum::extract::Request,
 ) -> Response {
@@ -511,7 +584,9 @@ async fn forward(
         usage::Record::pending(guard.request_id.to_string(), guard.started_at, &connection);
     guard.record = Some(record.clone());
     gateway.0.usage.begin(record).await;
-    if connection.revision != revision || connection.protocol != protocol {
+    if revision.is_some_and(|revision| connection.revision != revision)
+        || connection.protocol != protocol
+    {
         return rejected(
             &mut guard,
             StatusCode::CONFLICT,
@@ -554,7 +629,17 @@ async fn forward(
             )
         }
     };
-    if payload["model"].as_str() != Some(model_id(&connection).as_str()) {
+    let supplied_model = payload["model"].as_str();
+    let valid_model = if revision.is_some() {
+        supplied_model == Some(model_id(&connection).as_str())
+    } else {
+        // The URL binds a deployed service to one managed connection. Its model
+        // field is a client-side label; current upstream selection is central.
+        supplied_model.is_some_and(|model| {
+            !model.trim().is_empty() && model.len() <= 256 && !model.chars().any(char::is_control)
+        })
+    };
+    if !valid_model {
         return rejected(
             &mut guard,
             StatusCode::BAD_REQUEST,
@@ -583,7 +668,15 @@ async fn forward(
         Protocol::OpenaiResponses => "max_output_tokens",
         Protocol::Anthropic => "max_tokens",
     };
-    if let Some(value) = payload.get(output_field) {
+    let fields: &[&str] = if protocol == Protocol::OpenaiChat {
+        &["max_tokens", "max_completion_tokens"]
+    } else {
+        &[output_field]
+    };
+    for field in fields {
+        let Some(value) = payload.get(*field) else {
+            continue;
+        };
         if !value
             .as_u64()
             .is_some_and(|n| n > 0 && n <= u64::from(connection.max_output_tokens))
@@ -595,7 +688,8 @@ async fn forward(
                 "请求输出上限超过 Huaqing Switch 连接中设置的本地限制",
             );
         }
-    } else {
+    }
+    if payload.get(output_field).is_none() {
         payload[output_field] = json!(connection.max_output_tokens);
     }
     let suffix = match protocol {
@@ -616,6 +710,10 @@ async fn forward(
         let advertised_loop = url.host_str() == own_endpoint.host_str()
             && url.port_or_known_default() == own_endpoint.port_or_known_default();
         if advertised_loop
+            || gateway.0.public_origins.iter().any(|origin| {
+                url.host_str() == origin.host_str()
+                    && url.port_or_known_default() == origin.port_or_known_default()
+            })
             || (url.port_or_known_default() == Some(gateway.0.port)
                 && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")))
         {
@@ -643,28 +741,29 @@ async fn forward(
     if protocol == Protocol::Anthropic {
         outbound = outbound.header("anthropic-version", "2023-06-01");
     }
-    let upstream =
-        match tokio::time::timeout(Duration::from_secs(60), outbound.json(&payload).send()).await {
-            Ok(Ok(res)) => res,
-            Ok(Err(_)) => {
-                guard.status = 502;
-                return rejected(
-                    &mut guard,
-                    StatusCode::BAD_GATEWAY,
-                    "UPSTREAM_UNAVAILABLE",
-                    "无法连接模型 API，请检查供应商地址与网络",
-                );
-            }
-            Err(_) => {
-                guard.status = 504;
-                return rejected(
-                    &mut guard,
-                    StatusCode::GATEWAY_TIMEOUT,
-                    "UPSTREAM_TIMEOUT",
-                    "模型 API 响应超时",
-                );
-            }
-        };
+    let header_timeout = Duration::from_secs(if revision.is_some() { 60 } else { 180 });
+    let upstream = match tokio::time::timeout(header_timeout, outbound.json(&payload).send()).await
+    {
+        Ok(Ok(res)) => res,
+        Ok(Err(_)) => {
+            guard.status = 502;
+            return rejected(
+                &mut guard,
+                StatusCode::BAD_GATEWAY,
+                "UPSTREAM_UNAVAILABLE",
+                "无法连接模型 API，请检查供应商地址与网络",
+            );
+        }
+        Err(_) => {
+            guard.status = 504;
+            return rejected(
+                &mut guard,
+                StatusCode::GATEWAY_TIMEOUT,
+                "UPSTREAM_TIMEOUT",
+                "模型 API 响应超时",
+            );
+        }
+    };
     let status = upstream.status();
     if let Some(record) = &mut guard.record {
         record.http_status = Some(status.as_u16());
@@ -830,7 +929,7 @@ mod tests {
         forward(
             gateway.clone(),
             connection.id.clone(),
-            1,
+            Some(1),
             Protocol::OpenaiChat,
             request,
         )
@@ -954,7 +1053,7 @@ mod tests {
         let response = forward(
             gateway.clone(),
             connection.id.clone(),
-            2,
+            Some(2),
             Protocol::OpenaiChat,
             request,
         )
@@ -1053,7 +1152,7 @@ mod tests {
                 forward(
                     gateway.clone(),
                     "missing".into(),
-                    1,
+                    Some(1),
                     Protocol::OpenaiChat,
                     request,
                 )

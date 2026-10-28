@@ -1,0 +1,24 @@
+{
+  "design": {
+    "image": "hqzy-open-design:ui-20261022-c79a52a",
+    "imageId": "sha256:ae49c87ba9f1059176e5697e400e8ca1e586c6cca46ec6485cf4298e446be3cc",
+    "platform": "linux/amd64",
+    "files": {
+      "lib/index.js": "e183a9cdde703b47485410bd68d247c8becdb277c390f0f91c6dd28718d350e2"
+    }
+  },
+  "sculpture": {
+    "image": "quyang-creative/ai:20261010",
+    "imageId": "sha256:094a1f8e79d438123c3f50ac3e87a153b94304fc9081ff9cf4b06f37f64c5eab",
+    "platform": "linux/amd64",
+    "files": {
+      "app/agent/provider.py": "eff50ffaf165ef4ff5f4b89754c62ba677f03f6c7906e1ffb768e933f9cce8f6",
+      "app/services/providers/dashscope_chat.py": "c4a120b5288dfe27f8753a86bc8e1e4e439569e18f4e032f2e2211a3befc6dd0",
+      "app/services/providers/image_composition_layout.py": "cc2ce3081d4d688202a820e710bb856b7d4e12c8d40ead060b58e38015c0022c",
+      "app/services/providers/material_text.py": "6926a004aee8358f7793554dff0689970f5ac5413f87729e1fbf31c908527edf",
+      "app/services/providers/four_view_prompt.py": "9dbc49dddf12d39e4eb3b70784891397735e68d8d33f124468516a7b7ec8411a",
+      "app/services/providers/audience_analysis.py": "8338a3c2bb30b3dd5416ea01d2b66d99288c2bb9680a5b629ae99eefc72d79dd",
+      "app/services/providers/four_view_validation.py": "a9b329e1e796c51ea285d3b632fef3954b6c2f48a89d300873bd08af1af3c9cc"
+    }
+  }
+}

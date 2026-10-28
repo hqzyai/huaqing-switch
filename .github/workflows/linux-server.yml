@@ -10,6 +10,7 @@ on:
       - "tests/**"
       - "deploy/linux/**"
       - "integrations/harness-team/**"
+      - "integrations/multi-app/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "brand.config.json"
@@ -55,6 +56,12 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm exec vitest run tests/components/ServerApp.test.tsx tests/components/HqApp.test.tsx tests/lib/hq-server.test.ts
       - run: node --test integrations/harness-team/tests/catalog.test.mjs
+      - name: Verify scoped application migrations and text routing helpers
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python3 -m unittest discover -s integrations/multi-app/knowledge -p 'test_*.py' -v
+          python3 -m unittest discover -s integrations/multi-app/design-sculpture/tests -p 'test_sculpture.py' -v
       - run: pnpm run build:server
       - run: cargo build --locked --release --manifest-path server/Cargo.toml
       - name: Stage Linux deployment artifacts

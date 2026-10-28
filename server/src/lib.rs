@@ -37,6 +37,10 @@ impl App {
             config.gateway_bind,
             config.gateway_url.clone(),
             config.inference_token.clone(),
+            std::iter::once(config.public_origin.as_str())
+                .chain(config.http.as_ref().map(|http| http.origin.as_str()))
+                .map(url::Url::parse)
+                .collect::<Result<Vec<_>, _>>()?,
         );
         Ok(Self {
             auth: Arc::new(Auth::new(config.admin_token.clone())),

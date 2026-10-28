@@ -19,17 +19,37 @@
 https://{$HQ_SWITCH_LAN_ADDRESS}:8443 {
 	tls internal
 	encode gzip
-	request_body {
-		max_size 64KB
+	handle_path /model-api/* {
+		request_body {
+			max_size 25MiB
+		}
+		reverse_proxy switch:17621 {
+			header_up Host huaqing-switch:17621
+		}
 	}
-	reverse_proxy switch:8080
+	handle {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy switch:8080
+	}
 }
 
 # Explicit LAN HTTP entry: do not redirect and do not weaken HTTPS cookies.
 http://{$HQ_SWITCH_LAN_ADDRESS}:8081 {
 	encode gzip
-	request_body {
-		max_size 64KB
+	handle_path /model-api/* {
+		request_body {
+			max_size 25MiB
+		}
+		reverse_proxy switch:17621 {
+			header_up Host huaqing-switch:17621
+		}
 	}
-	reverse_proxy switch:8081
+	handle {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy switch:8081
+	}
 }
