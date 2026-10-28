@@ -53,7 +53,7 @@ Nginx 固定为官方 1.30.6 的 linux/amd64 摘要，导入后使用指定本�
 
 同一入口的 `/model-api/` 只转发到原有机器推理监听器，使用独立推理凭证，不能用管理凭证调用。业务服务使用 `/model-api/hq/services/<connection-id>/v1` 稳定地址调用现有文本生成协议；不再保存上游文本模型 API Key。模型、密钥、URL 和预算在 Switch 修改后对后续调用生效，原 Harness 的版本固定目录继续保留。跨 rootful / rootless daemon 的调用需按 `integrations/multi-app/network-policy.py` 核验真实网桥后限域放行已有 `28001/tcp`，不得直接对所有容器或公网开放。详细迁移边界与各应用的持久配置脚本见 `integrations/multi-app/`。
 
-首次登录使用 `$HQ_SWITCH_STATE_DIR/private/admin-token` 中的管理凭证，通过 SSH 私下读取。新管理凭证格式为 `sk-` 加 64 位十六进制随机串（32 随机字节）；登录和 CLI Bearer 均须使用含 `sk-` 的完整字符串，不能去掉前缀。原有无前缀 64 位十六进制管理凭证仍兼容，重复运行初始化脚本会保留现有值，不自动轮换。机器推理凭证保持无前缀的 64 位十六进制格式；两种凭证的随机部分必须独立，不能仅通过增减 `sk-` 复用同一串随机值。HTTPS 使用 `__Host-hq_switch_session`（HttpOnly / Secure / SameSite=Strict）；HTTP 使用独立的 `hq_switch_http_session`（HttpOnly / SameSite=Strict，无 Secure），会话不能跨入口重放。两端保留各自同源 CSRF 校验，共享登录限流和会话总量限制；传输策略由服务监听器决定，不信任客户端转发头。网页不会存储管理凭证。`inference-token` 只供 HQHarness 网关读取，不交给网页或 worker，两种凭证不能互用。
+首次登录使用 `$HQ_SWITCH_STATE_DIR/private/admin-token` 中的管理凭证，通过 SSH 私下读取。新管理凭证格式为 `sk-` 加 64 位十六进制随机串（32 随机字节）；登录和 CLI Bearer 均须使用含 `sk-` 的完整字符串，不能去掉前缀。原有无前缀 64 位十六进制管理凭证仍兼容，重复运行初始化脚本会保留现有值，不自动轮换。机器推理凭证保持无前缀的 64 位十六进制格式；两种凭证的随机部分必须独立，不能仅通过增减 `sk-` 复用同一串随机值。HTTPS 使用 `__Host-hq_switch_session`（HttpOnly / Secure / SameSite=Strict）；HTTP 使用独立的 `hq_switch_http_session`（HttpOnly / SameSite=Strict，无 Secure），会话不能跨入口重放。两端保留各自同源 CSRF 校验，共享登录限流和会话总量限制；传输策略由服务监听器决定，不信任客户端转发头。网页不会存储管理凭证。`inference-token` 供 HQHarness 网关及已接入的业务服务读取，不交给浏览器或 Harness worker；业务服务不能持有 `admin-token`，两种凭证不能互用。
 
 Caddy 使用内部 CA 为局域网地址签发证书。导出新建 `edge-tls` 卷的 `/data/caddy/pki/authorities/local/root.crt`，核对后导入访问设备的受信任根证书库；保留 CA 的私钥卷用于续签。TLS 验收应使用 `curl --cacert <root.crt>`，不能用跳过证书校验代替。已有企业证书时可在入口层替换为组织管理的 TLS 配置。
 

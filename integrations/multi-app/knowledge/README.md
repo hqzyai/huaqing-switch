@@ -31,9 +31,14 @@ python3 migrate-chat.py prepare --backup-file /home/ubuntu/Workspace/huaqing-swi
 主任务确认 Switch 稳定入口和 Knowledge 网桥可达后，再执行：
 
 ```sh
+# 仅在明确授权一次真实文本验证后执行；固定合成文本，零重试，最多64输出Token。
+python3 verify-installed-chat.py probe --allow-real-model-call
 python3 migrate-chat.py apply --backup-file /home/ubuntu/Workspace/huaqing-switch/backups/knowledge-chat-20261028/knowledge.json
 python3 migrate-chat.py verify --backup-file /home/ubuntu/Workspace/huaqing-switch/backups/knowledge-chat-20261028/knowledge.json
+python3 verify-installed-chat.py factory
 ```
+
+真实探针从实际 Knowledge 容器的已安装 `OpenAI-API-Compatible` 适配器发出。请求钩子断言固定测试消息、推理凭证、稳定服务 URL 和 `max_tokens=64`；适配器与 SDK 重试均关闭。成功回执保存到服务器 `acceptance/multi-app-knowledge-real-probe.json`，重复执行只复用成功回执；失败或保留中的回执需要审查，不自动重复计费。报告只记录状态、模型和用量元数据，并与 Switch 持久统计匹配，不输出消息或回答。`factory` 按实际 `get_model_config_by_id` / `TenantLLMService.model_instance` 读取切换后的配置，核对 URL、凭证角色和原模型 ID；不再次请求模型。
 
 凭证默认从 `/home/ubuntu/Workspace/huaqing-switch/state/private/inference-token` 读取；文件必须是当前用户拥有的 0600 普通文件，不允许符号链接。凭证仅通过服务器进程的 stdin 进入 Knowledge 容器，不出现在命令行、环境变量或脱敏报告中。目标地址可以用 `--base-url` 指定，但只允许同一服务器 `28001` 的稳定模型服务路径；不能使用管理凭证、任意公网地址或带凭证的 URL。
 

@@ -61,7 +61,8 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
         run: |
           python3 -m unittest discover -s integrations/multi-app/knowledge -p 'test_*.py' -v
-          python3 -m unittest discover -s integrations/multi-app/design-sculpture/tests -p 'test_sculpture.py' -v
+          python3 -m unittest discover -s integrations/multi-app/design-sculpture/tests -p 'test_*.py' -v
+          node --test integrations/multi-app/design-sculpture/tests/test_design_state_atomic.mjs
       - run: pnpm run build:server
       - run: cargo build --locked --release --manifest-path server/Cargo.toml
       - name: Stage Linux deployment artifacts
