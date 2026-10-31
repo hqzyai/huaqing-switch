@@ -824,6 +824,7 @@ mod tests {
         let open = || {
             Arc::new(Database {
                 conn: Mutex::new(Sqlite::open(&path).unwrap()),
+                secrets: super::super::secrets::SecretProtector::memory().unwrap(),
                 log_count_cache: Mutex::new(None),
             })
         };

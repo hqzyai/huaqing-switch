@@ -670,6 +670,7 @@ function ConnectionForm({
               {connection?.apiKeyConfigured
                 ? "留空将保留已保存的密钥。"
                 : "无需鉴权的本地服务可留空。"}
+              保存后加密存储，不再回显密钥。
             </p>
           </div>
           <div className="grid grid-cols-2 gap-4">

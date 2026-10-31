@@ -60,6 +60,11 @@ def attest_existing(root=ROOT):
     """Bind original two immutable receipts using pre-request token-file history."""
     destination=root/'acceptance/knowledge-embedding-credential-attestation.json'
     if destination.exists():return validate_attestation(root)
+    db=sqlite3.connect((root/'state/data/switch.sqlite').as_uri()+'?mode=ro',uri=True)
+    try:store=json.loads(db.execute('SELECT value FROM settings WHERE key=?',('hq.connections.v1',)).fetchone()[0])
+    finally:db.close()
+    if 'formatVersion'in store or any('credential'in row for row in store['connections']):
+        raise RuntimeError('Encrypted/versioned Switch store (formatVersion/credential) is unsupported by this legacy attestation; use existing attestation or Switch management operations, never extract provider keys')
     salt_path=root/'state/private/knowledge-embedding-attestation-salt'
     if not salt_path.exists():
         require(not destination.exists()and not(root/'acceptance/knowledge-embedding-provider-samples.json').exists()and not(root/'acceptance/knowledge-embedding-provider-samples.json.attempt.json').exists())
@@ -68,9 +73,6 @@ def attest_existing(root=ROOT):
     state=credential_state(root);evidence={}
     for phase in ['batch','query']:
         proof,started=_phase_evidence(root,phase);require(state['tokenCtimeNs']<=started);evidence[phase]=proof
-    db=sqlite3.connect((root/'state/data/switch.sqlite').as_uri()+'?mode=ro',uri=True)
-    try:store=json.loads(db.execute('SELECT value FROM settings WHERE key=?',('hq.connections.v1',)).fetchone()[0])
-    finally:db.close()
     selected=next(row for row in store['connections']if row['id']==DEFAULT)
     require(store['activeId']==DEFAULT and selected['revision']==1 and selected['model']=='deepseek-v4.1-flash'and selected['protocol']=='openai-chat'and selected['baseUrl'].rstrip('/')==BASE)
     require(hmac.compare_digest(selected['apiKey'],state['token']))

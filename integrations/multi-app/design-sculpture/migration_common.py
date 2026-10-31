@@ -100,7 +100,10 @@ def store():
         database.execute("PRAGMA query_only=ON")
         row = database.execute("SELECT value FROM settings WHERE key=?", ("hq.connections.v1",)).fetchone()
     require(row is not None, "Switch connection store is missing")
-    return json.loads(row[0])
+    value = json.loads(row[0])
+    require("formatVersion" not in value and not any("credential" in item for item in value["connections"]),
+            "Encrypted/versioned Switch store (formatVersion/credential) is unsupported by this legacy migration; use Switch management operations, never extract provider keys")
+    return value
 
 
 def backup_switch(path):

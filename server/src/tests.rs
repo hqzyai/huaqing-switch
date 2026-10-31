@@ -11,16 +11,28 @@ fn fixture() -> (tempfile::TempDir, App) {
         "<!doctype html><title>HQ fixture</title>",
     )
     .unwrap();
+    let data_dir = temp.path().join("data");
+    std::fs::create_dir(&data_dir).unwrap();
+    let provider_key_file = temp.path().join("provider-key");
+    std::fs::write(&provider_key_file, [42u8; 32]).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&provider_key_file, std::fs::Permissions::from_mode(0o600))
+            .unwrap();
+    }
+    let provider_key_file = provider_key_file.canonicalize().unwrap();
     let config = Config {
         web_bind: "127.0.0.1:8080".parse().unwrap(),
         gateway_bind: "127.0.0.1:17621".parse().unwrap(),
         gateway_url: "http://switch.test:17621".into(),
         public_origin: "https://switch.example".into(),
         http: None,
-        data_dir: temp.path().into(),
+        data_dir,
         static_dir: temp.path().into(),
         admin_token: "a".repeat(64),
         inference_token: "b".repeat(64),
+        provider_key_file,
     };
     let app = App::open(config).unwrap();
     (temp, app)
@@ -490,7 +502,7 @@ async fn web_whitelist_roles_csrf_cookie_and_session_logout() {
 }
 #[tokio::test]
 async fn management_persists_revision_secrets_and_usage_across_restart() {
-    let (temp, app) = fixture();
+    let (_temp, app) = fixture();
     let config = app.config.clone();
     let response = app
         .web()
@@ -574,7 +586,13 @@ async fn management_persists_revision_secrets_and_usage_across_restart() {
     {
         use std::os::unix::fs::MetadataExt;
         assert_eq!(
-            temp.path().join("switch.sqlite").metadata().unwrap().mode() & 0o777,
+            config
+                .data_dir
+                .join("switch.sqlite")
+                .metadata()
+                .unwrap()
+                .mode()
+                & 0o777,
             0o600
         );
     }

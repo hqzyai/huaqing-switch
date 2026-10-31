@@ -49,6 +49,8 @@ docker compose -f deploy/linux/compose.yml up -d --no-build --wait
 
 Nginx 固定为官方 1.30.6 的 linux/amd64 摘要，导入后使用指定本地标签；离线镜像归档也必须包含该标签，以便 `docker save/load` 后直接启动。把环境变量存入部署目录的私密环境文件，供重启和运维重复使用；不要把凭证本身写进环境变量或 Compose 文件。状态初始化会保留已有文件，拒绝不安全的权限或相同的两份凭证。容器内的 HTTPS 管理上游监听 `8080`、HTTP 管理上游监听 `8081`、推理接口监听 `17621`。只有 Nginx 入口的 `28001` 绑定局域网，按 TLS ClientHello 将连接分别转给 Caddy 的 HTTPS / HTTP 入口；其他端口不发布到宿主。
 
+新版本还必须提供独立的供应商凭证加密主密钥。先运行上述初始化脚本：首次创建 `$HQ_SWITCH_STATE_DIR/private/provider-encryption-key`，内容为 32 个原始随机字节（不是十六进制字符串，不带换行）；已有文件只校验、不覆盖。文件必须属于部署用户、为普通文件且权限严格为 0600，绝对路径各级不能包含符号链接。主密钥不能复用管理、推理或供应商 API Key。Compose 通过 `HQ_SWITCH_PROVIDER_KEY_FILE=/run/secrets/provider-encryption-key` 指定容器内路径，并从 `state/private/` 只读挂载，位于 `/data` 之外。独立运行服务也必须设置此变量，不能把主密钥写入环境变量、镜像或日志。升级保留原主密钥；丢失后应恢复与数据库匹配的原密钥，重新生成不能解密旧记录。
+
 本 Compose 按局域网直连需求显式启用 `http://<server-lan-ip>:28001`，返回 HTTP 内容，不跳转；`https://<server-lan-ip>:28001` 同时保留。HTTP 会明文传输管理凭证和页面内容，只在已授权的受信任内网使用，并保留下述防火墙限制。HTTP 开关由 `HQ_SWITCH_HTTP_ORIGIN` 和 `HQ_SWITCH_HTTP_BIND` 成对控制，单独运行服务时默认关闭；HTTP Origin 必须是私网 IPv4 或 loopback，且 host / port 与主 HTTPS Origin 一致。只需 HTTPS 时，应同时移除 Compose 的这两个变量、Caddy 的 HTTP site 和 Nginx 的明文分流配置。
 
 同一入口的 `/model-api/` 只转发到原有机器推理监听器，使用独立推理凭证，不能用管理凭证调用。业务服务使用 `/model-api/hq/services/<connection-id>/v1` 稳定地址调用现有文本生成协议；不再保存上游文本模型 API Key。模型、密钥、URL 和预算在 Switch 修改后对后续调用生效，原 Harness 的版本固定目录继续保留。跨 rootful / rootless daemon 的调用需按 `integrations/multi-app/network-policy.py` 核验真实网桥后限域放行已有 `28001/tcp`，不得直接对所有容器或公网开放。详细迁移边界与各应用的持久配置脚本见 `integrations/multi-app/`。
@@ -63,9 +65,13 @@ Switch 和 Caddy 的容器 UID 0 仅用于上述 rootless daemon，映射到宿�
 
 ## 数据、升级与恢复
 
-`state/data/switch.sqlite` 包含供应商凭证和统计，目录 0700、文件 0600。它与桌面数据库独立；服务不扫描或导入其他用户的桌面配置。凭证不进入响应、用量表、镜像和导出清单。数据库启用 WAL、FULL 同步和进程独占锁；不要将同一状态目录同时挂载给多个活动实例。
+`state/data/switch.sqlite` 保存加密的供应商凭证（`formatVersion: 2`、连接内的 `credential`）和统计，目录 0700、文件 0600。它与桌面数据库独立；服务不扫描或导入其他用户的桌面配置。凭证不进入响应、用量表、镜像和导出清单。数据库启用 WAL、FULL 同步和进程独占锁；不要将同一状态目录同时挂载给多个活动实例。
 
 升级前用 SQLite 在线备份或停止服务后备份整个私密状态目录，同时记录镜像 ID、Compose/环境文件及 TLS 卷。升级固定镜像标签，等待健康检查并确认连接和用量后再交付。原有请求最多等待 300 秒，容器停止期限为 330 秒；不要对正在调用的 worker 强制重建。
+
+交付和留存备份时，将密文数据库与其对应的 `provider-encryption-key` 分开安全保管，分别控制访问权限并记录配对关系；仅有数据库或错误的主密钥无法恢复供应商凭证。若先备份整个状态目录，需将主密钥移入独立的私密密钥备份，避免与数据库归档一同分发。历史版本的数据库、迁移计划和私密备份可能仍包含明文，应继续按凭证保护，不因新版本启用加密就视为已清除。
+
+`integrations/multi-app/` 中历史迁移工具读取原始 `hq.connections.v1` 的逻辑只适用于旧明文格式；读取器遇到 `formatVersion` 或 `credential` 会拒绝继续。不要把密文封套当作上游 API Key，也不要在这些一次性迁移工具中新增解密入口。连接的受支持管理操作使用带鉴权的 Switch 管理 API；无需读取原始配置的既有 embedding 证据校验仍可独立使用。
 
 HQHarness 集成应保留原加密目录、用户身份、签名密钥、会话与工作区卷，并固定旧会话的模型版本。旧镜像与旧 worker 容器留作回滚；不要执行 `down -v` 或删除用户卷。具体集成代码和验收由 `integrations/harness-team/` 提供。
 

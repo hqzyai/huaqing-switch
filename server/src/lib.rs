@@ -31,6 +31,7 @@ impl App {
     pub fn open(config: Config) -> anyhow::Result<Self> {
         let db = Arc::new(database::Database::open(
             &config.data_dir.join("switch.sqlite"),
+            &config.provider_key_file,
         )?);
         let gateway = hq::gateway::Gateway::server(
             db.clone(),

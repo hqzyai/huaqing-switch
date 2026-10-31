@@ -25,10 +25,12 @@ services:
       HQ_SWITCH_STATIC_DIR: /app/dist-server
       HQ_SWITCH_ADMIN_TOKEN_FILE: /run/secrets/admin-token
       HQ_SWITCH_INFERENCE_TOKEN_FILE: /run/secrets/inference-token
+      HQ_SWITCH_PROVIDER_KEY_FILE: /run/secrets/provider-encryption-key
     volumes:
       - ${HQ_SWITCH_STATE_DIR:?Set the private state directory}/data:/data
       - ${HQ_SWITCH_STATE_DIR}/private/admin-token:/run/secrets/admin-token:ro
       - ${HQ_SWITCH_STATE_DIR}/private/inference-token:/run/secrets/inference-token:ro
+      - ${HQ_SWITCH_STATE_DIR}/private/provider-encryption-key:/run/secrets/provider-encryption-key:ro
     networks:
       front:
       harness:

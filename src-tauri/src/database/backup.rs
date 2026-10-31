@@ -8,8 +8,9 @@ use crate::error::AppError;
 use chrono::{Local, Utc};
 use rusqlite::backup::{Backup, StepResult};
 use rusqlite::types::ValueRef;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use tempfile::{Builder, NamedTempFile};
@@ -30,6 +31,47 @@ fn lock_backup_file_operations() -> Result<BackupFileOperationGuard, AppError> {
     BACKUP_FILE_OPERATION_LOCK
         .lock()
         .map_err(|e| AppError::Database(format!("Backup file operation lock failed: {e}")))
+}
+
+fn managed_backup_is_plain_file(metadata: &fs::Metadata) -> bool {
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        // Do not rewrite another user's file or a hard link outside this
+        // application's managed backup directory.
+        metadata.nlink() == 1 && metadata.uid() == unsafe { libc::geteuid() }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        metadata.file_attributes() & 0x400 == 0 // FILE_ATTRIBUTE_REPARSE_POINT
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        false
+    }
+}
+
+fn managed_backup_same_file(left: &fs::Metadata, right: &fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        left.dev() == right.dev() && left.ino() == right.ino()
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        left.creation_time() == right.creation_time()
+            && left.file_attributes() & 0x400 == 0
+            && right.file_attributes() & 0x400 == 0
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        false
+    }
 }
 
 /// `dump_sql` 会写出的 PRAGMA。其余 PRAGMA 一律拒绝——`temp_store_directory`
@@ -74,8 +116,9 @@ fn import_authorizer(context: rusqlite::hooks::AuthContext<'_>) -> rusqlite::hoo
     };
 
     if escapes_temp_db {
-        // SQLite 只会回一句 "not authorized"，不记日志就无从知道是哪条语句被拦。
-        log::warn!("SQL 导入拒绝了越界语句: {:?}", context.action);
+        // Action parameters may contain credentials, SQL text or private paths.
+        // The denial event is useful; the untrusted arguments are not log data.
+        log::warn!("SQL 导入拒绝了越界操作");
         Authorization::Deny
     } else {
         Authorization::Allow
@@ -205,7 +248,17 @@ impl Database {
         temp_conn.authorizer(
             None::<fn(rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization>,
         );
-        batch_result.map_err(|e| AppError::Database(format!("执行 SQL 导入失败: {e}")))?;
+        batch_result.map_err(|error| {
+            let message = match error {
+                rusqlite::Error::SqliteFailure(code, _)
+                    if code.code == rusqlite::ErrorCode::AuthorizationForStatementDenied =>
+                {
+                    "SQL 导入被安全策略拒绝（authorization）"
+                }
+                _ => "SQL 导入失败，请检查导出文件格式",
+            };
+            AppError::Database(message.to_owned())
+        })?;
         if !temp_conn.is_autocommit() {
             let _ = temp_conn.execute_batch("ROLLBACK;");
             return Err(AppError::localized(
@@ -224,6 +277,8 @@ impl Database {
         Self::apply_schema_migrations_on_conn(&temp_conn)?;
         // 导入和同步不经过保存时的校验：坏的自定义图标在这里清掉，不带进主库
         crate::services::provider::icon::strip_invalid_custom_icons(&temp_conn)?;
+        crate::hq::migrate_connection_storage(&temp_conn, &self.secrets)
+            .map_err(AppError::Config)?;
         on_staging_ready()?;
 
         let backup_file_guard = lock_backup_file_operations()?;
@@ -232,6 +287,8 @@ impl Database {
         // device-local rows can miss writes that arrived during staging.
         let backup_path = {
             let mut main_conn = lock_conn!(self.conn);
+            crate::hq::migrate_connection_storage(&main_conn, &self.secrets)
+                .map_err(AppError::Config)?;
             let backup_path =
                 Self::backup_database_file_from_conn(&backup_file_guard, &main_conn, &[])?;
             if !preserve_tables.is_empty() {
@@ -253,6 +310,7 @@ impl Database {
     /// 创建内存快照以避免长时间持有数据库锁
     pub(crate) fn snapshot_to_memory(&self) -> Result<Connection, AppError> {
         let conn = lock_conn!(self.conn);
+        crate::hq::migrate_connection_storage(&conn, &self.secrets).map_err(AppError::Config)?;
         let mut snapshot =
             Connection::open_in_memory().map_err(|e| AppError::Database(e.to_string()))?;
 
@@ -485,7 +543,155 @@ impl Database {
         backup_file_guard: &BackupFileOperationGuard,
     ) -> Result<Option<PathBuf>, AppError> {
         let conn = lock_conn!(self.conn);
+        crate::hq::migrate_connection_storage(&conn, &self.secrets).map_err(AppError::Config)?;
         Self::backup_database_file_from_conn(backup_file_guard, &conn, &[])
+    }
+
+    /// Normalize the application's managed SQLite backups before startup can
+    /// expose or create additional copies. Files elsewhere (including manual
+    /// SQL exports) are never searched or rewritten by this operation.
+    pub(crate) fn migrate_managed_hq_backups(&self) -> Result<usize, AppError> {
+        let _backup_file_guard = lock_backup_file_operations()?;
+        let backup_dir = get_app_config_dir().join("backups");
+        let directory_metadata = match backup_dir.symlink_metadata() {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(_) => return Err(AppError::Config("无法读取历史密钥备份目录".into())),
+        };
+        if directory_metadata.file_type().is_symlink() || !directory_metadata.is_dir() {
+            return Err(AppError::Config("历史密钥备份目录不是普通目录".into()));
+        }
+        let root = backup_dir
+            .canonicalize()
+            .map_err(|_| AppError::Config("无法验证历史密钥备份目录".into()))?;
+        let mut migrated = 0;
+        for entry in
+            fs::read_dir(&root).map_err(|_| AppError::Config("无法读取历史密钥备份目录".into()))?
+        {
+            let entry = entry.map_err(|_| AppError::Config("无法检查历史密钥备份".into()))?;
+            let path = entry.path();
+            if path.extension().is_none_or(|extension| extension != "db") {
+                continue;
+            }
+            let metadata = path
+                .symlink_metadata()
+                .map_err(|_| AppError::Config("无法检查历史密钥备份".into()))?;
+            if !managed_backup_is_plain_file(&metadata) {
+                continue;
+            }
+            if path.canonicalize().ok().as_deref() != Some(path.as_path()) {
+                return Err(AppError::Config("历史密钥备份路径已发生变化".into()));
+            }
+            let mut options = fs::OpenOptions::new();
+            options.read(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+            }
+            #[cfg(windows)]
+            {
+                use std::os::windows::fs::OpenOptionsExt;
+                // Let SQLite read/write the same file, while preventing rename
+                // or deletion until normalization completes.
+                options.share_mode(0x1 | 0x2);
+            }
+            let mut guard = options
+                .open(&path)
+                .map_err(|_| AppError::Config("无法打开历史密钥备份".into()))?;
+            let opened = guard
+                .metadata()
+                .map_err(|_| AppError::Config("无法检查历史密钥备份".into()))?;
+            if !managed_backup_same_file(&metadata, &opened) {
+                return Err(AppError::Config("历史密钥备份路径已发生变化".into()));
+            }
+            let mut header = [0; 16];
+            if guard.read_exact(&mut header).is_err() || &header != b"SQLite format 3\0" {
+                continue;
+            }
+            let connection = Connection::open_with_flags(
+                &path,
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+                    | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX
+                    | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+            )
+            .map_err(|_| AppError::Config("无法打开历史密钥备份".into()))?;
+            let current = path
+                .symlink_metadata()
+                .map_err(|_| AppError::Config("无法检查历史密钥备份".into()))?;
+            if !managed_backup_same_file(&opened, &current) {
+                return Err(AppError::Config("历史密钥备份路径已发生变化".into()));
+            }
+            let user_version: i32 = connection
+                .query_row("PRAGMA user_version", [], |row| row.get(0))
+                .map_err(|_| AppError::Config("无法检查历史密钥备份版本".into()))?;
+            if user_version > super::SCHEMA_VERSION {
+                // A newer application's backup is not an input this version
+                // is authorized to migrate or reinterpret.
+                continue;
+            }
+            let settings_table: bool = connection
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='settings')",
+                    [],
+                    |row| row.get(0),
+                )
+                .map_err(|_| AppError::Config("无法检查历史密钥备份结构".into()))?;
+            if !settings_table {
+                continue;
+            }
+            let raw: Option<String> = connection
+                .query_row(
+                    "SELECT value FROM settings WHERE key='hq.connections.v1'",
+                    [],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|_| AppError::Config("无法检查历史密钥备份配置".into()))?;
+            let Some(raw) = raw else { continue };
+            let shape: serde_json::Value = serde_json::from_str(&raw)
+                .map_err(|_| AppError::Config("历史密钥备份配置格式损坏".into()))?;
+            let pending: bool = connection
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM settings WHERE key='hq.credentials.scrub-pending.v1')",
+                    [],
+                    |row| row.get(0),
+                )
+                .map_err(|_| AppError::Config("无法检查历史密钥备份迁移状态".into()))?;
+            // Already-encrypted backups may belong to a different OS account.
+            // Do not require access to their vault or rewrite those files.
+            let has_legacy_key_field = shape["connections"].as_array().is_some_and(|connections| {
+                connections
+                    .iter()
+                    .any(|connection| connection.get("apiKey").is_some())
+            });
+            if shape.get("formatVersion").is_some() && !has_legacy_key_field && !pending {
+                continue;
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                guard
+                    .set_permissions(fs::Permissions::from_mode(0o600))
+                    .map_err(|_| AppError::Config("无法保护历史密钥备份权限".into()))?;
+            }
+            connection
+                .busy_timeout(std::time::Duration::from_secs(2))
+                .map_err(|_| AppError::Config("无法检查历史密钥备份锁".into()))?;
+            crate::hq::migrate_connection_storage(&connection, &self.secrets)
+                .map_err(AppError::Config)?;
+            connection
+                .close()
+                .map_err(|_| AppError::Config("无法关闭历史密钥备份".into()))?;
+            let after = path
+                .symlink_metadata()
+                .map_err(|_| AppError::Config("无法检查历史密钥备份".into()))?;
+            if !managed_backup_same_file(&opened, &after) {
+                return Err(AppError::Config("历史密钥备份路径已发生变化".into()));
+            }
+            migrated += 1;
+        }
+        Ok(migrated)
     }
 
     /// Create a safety backup from a connection whose caller already owns both
@@ -1064,12 +1270,16 @@ impl Database {
         Self::create_tables_on_conn(&staging_conn)?;
         Self::apply_schema_migrations_on_conn(&staging_conn)?;
         Self::ensure_model_pricing_seeded_on_conn(&staging_conn)?;
+        crate::hq::migrate_connection_storage(&staging_conn, &self.secrets)
+            .map_err(AppError::Config)?;
         Self::validate_sqlite_integrity(&staging_conn)?;
 
         // Keep one main-DB guard across the safety snapshot and final apply so
         // the safety file exactly represents the state being replaced.
         let safety_backup = {
             let mut main_conn = lock_conn!(self.conn);
+            crate::hq::migrate_connection_storage(&main_conn, &self.secrets)
+                .map_err(AppError::Config)?;
             let safety_backup = Self::backup_database_file_from_conn(
                 &backup_file_guard,
                 &main_conn,
@@ -1250,6 +1460,299 @@ mod tests {
         fn drop(&mut self) {
             let _ = update_settings(self.previous.clone());
         }
+    }
+
+    const HQ_DUMMY_SECRET: &str = "sk-hq-backup-fixture-never-plaintext";
+
+    fn legacy_hq_value(secret: &str) -> String {
+        serde_json::json!({
+            "revision": 7,
+            "activeId": "hq-backup-fixture",
+            "connections": [{
+                "id": "hq-backup-fixture", "name": "Backup fixture",
+                "protocol": "openai-chat", "baseUrl": "https://example.invalid/v1",
+                "model": "fixture-model", "apiKey": secret, "revision": 3,
+                "contextWindow": 8192, "maxOutputTokens": 1024, "supportsImages": false
+            }]
+        })
+        .to_string()
+    }
+
+    fn insert_legacy_hq(db: &Database, secret: &str) -> Result<(), AppError> {
+        let conn = crate::database::lock_conn!(db.conn);
+        conn.execute(
+            "INSERT OR REPLACE INTO settings(key,value) VALUES('hq.connections.v1',?1)",
+            [legacy_hq_value(secret)],
+        )?;
+        Ok(())
+    }
+
+    fn hq_setting(db: &Database) -> Result<String, AppError> {
+        let conn = crate::database::lock_conn!(db.conn);
+        conn.query_row(
+            "SELECT value FROM settings WHERE key='hq.connections.v1'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(AppError::from)
+    }
+
+    fn assert_hq_setting_is_protected(value: &str) {
+        assert!(!value.contains(HQ_DUMMY_SECRET));
+        let parsed: serde_json::Value = serde_json::from_str(value).unwrap();
+        assert_eq!(parsed["formatVersion"], 2);
+        assert_eq!(parsed["revision"], 7);
+        assert_eq!(parsed["activeId"], "hq-backup-fixture");
+        assert_eq!(parsed["connections"][0]["revision"], 3);
+        assert_eq!(parsed["connections"][0]["model"], "fixture-model");
+        assert!(parsed["connections"][0].get("apiKey").is_none());
+        assert_eq!(parsed["connections"][0]["credential"]["kind"], "protected");
+    }
+
+    #[test]
+    #[serial]
+    fn hq_sql_export_and_binary_backup_never_copy_legacy_plaintext() -> Result<(), AppError> {
+        let _test_home = TestHomeGuard::new();
+        let db = Database::memory()?;
+        insert_legacy_hq(&db, HQ_DUMMY_SECRET)?;
+
+        let exported = db.export_sql_string()?;
+        assert!(!exported.contains(HQ_DUMMY_SECRET));
+        assert_hq_setting_is_protected(&hq_setting(&db)?);
+        assert!(!db.export_sql_string_for_sync()?.contains(HQ_DUMMY_SECRET));
+
+        // Reinsert the pre-encryption representation to exercise the binary
+        // backup entry independently of the export entry.
+        insert_legacy_hq(&db, HQ_DUMMY_SECRET)?;
+        let backup_path = db.backup_database_file()?.unwrap();
+        let bytes = std::fs::read(&backup_path).map_err(|e| AppError::io(&backup_path, e))?;
+        assert!(!bytes
+            .windows(HQ_DUMMY_SECRET.len())
+            .any(|window| window == HQ_DUMMY_SECRET.as_bytes()));
+        let backup =
+            Connection::open_with_flags(&backup_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let raw: String = backup.query_row(
+            "SELECT value FROM settings WHERE key='hq.connections.v1'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_hq_setting_is_protected(&raw);
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn hq_legacy_sql_import_seals_before_live_replacement() -> Result<(), AppError> {
+        let _test_home = TestHomeGuard::new();
+        let source = Database::memory()?;
+        insert_legacy_hq(&source, HQ_DUMMY_SECRET)?;
+        // Simulate an actual old export. Public export now correctly encrypts
+        // first, so this fixture deliberately uses the private raw dumper.
+        let old_export = {
+            let conn = crate::database::lock_conn!(source.conn);
+            Database::dump_sql(&conn, &[])?
+        };
+        assert!(old_export.contains(HQ_DUMMY_SECRET));
+        let target = Database::memory()?;
+        target.set_setting("before-import", "preserved-in-safety-backup")?;
+        let safety_id = target.import_sql_string(&old_export)?;
+        assert_hq_setting_is_protected(&hq_setting(&target)?);
+        let snapshot = crate::hq::connections(&target).map_err(AppError::Config)?;
+        let view = serde_json::to_value(snapshot).unwrap();
+        assert_eq!(view["connections"][0]["apiKeyConfigured"], true);
+        assert_eq!(view["revision"], 7);
+        assert!(!target.export_sql_string()?.contains(HQ_DUMMY_SECRET));
+        let safety = crate::config::get_app_config_dir()
+            .join("backups")
+            .join(format!("{safety_id}.db"));
+        let bytes = std::fs::read(&safety).map_err(|e| AppError::io(&safety, e))?;
+        assert!(!bytes
+            .windows(HQ_DUMMY_SECRET.len())
+            .any(|window| window == HQ_DUMMY_SECRET.as_bytes()));
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn hq_sql_import_temp_settings_cannot_hide_main_plaintext() -> Result<(), AppError> {
+        let _test_home = TestHomeGuard::new();
+        let source = Database::memory()?;
+        insert_legacy_hq(&source, HQ_DUMMY_SECRET)?;
+        let old_export = {
+            let conn = crate::database::lock_conn!(source.conn);
+            Database::dump_sql(&conn, &[])?
+        };
+        for shadow in [
+            "CREATE TEMP TABLE settings(key TEXT PRIMARY KEY,value TEXT);",
+            "CREATE TEMP VIEW settings AS SELECT key,value FROM main.settings WHERE 0;",
+        ] {
+            let target = Database::memory()?;
+            target.import_sql_string(&format!("{old_export}\n{shadow}"))?;
+            assert_hq_setting_is_protected(&hq_setting(&target)?);
+            let snapshot = crate::hq::connections(&target).map_err(AppError::Config)?;
+            assert_eq!(
+                serde_json::to_value(snapshot).unwrap()["connections"][0]["apiKeyConfigured"],
+                true
+            );
+            assert!(!target.export_sql_string()?.contains(HQ_DUMMY_SECRET));
+        }
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn hq_wrong_key_sql_import_and_binary_restore_preserve_live_database() -> Result<(), AppError> {
+        let _test_home = TestHomeGuard::new();
+        let source = Database::memory()?;
+        insert_legacy_hq(&source, HQ_DUMMY_SECRET)?;
+        let encrypted_export = source.export_sql_string()?;
+        let source_backup = source.backup_database_file()?.unwrap();
+
+        let target = Database::memory()?;
+        insert_legacy_hq(&target, "sk-unrelated-target-fixture")?;
+        target.export_sql_string()?;
+        let before = hq_setting(&target)?;
+        let files_before = Database::list_backups()?
+            .into_iter()
+            .map(|entry| entry.filename)
+            .collect::<Vec<_>>();
+
+        let error = target
+            .import_sql_string(&encrypted_export)
+            .expect_err("another vault's key must not be silently imported");
+        assert!(!error.to_string().contains(HQ_DUMMY_SECRET));
+        assert_eq!(hq_setting(&target)?, before);
+        assert_eq!(
+            Database::list_backups()?
+                .into_iter()
+                .map(|entry| entry.filename)
+                .collect::<Vec<_>>(),
+            files_before
+        );
+
+        let filename = source_backup.file_name().unwrap().to_str().unwrap();
+        target
+            .restore_from_backup(filename)
+            .expect_err("another vault's binary backup must fail before replacing live data");
+        assert_eq!(hq_setting(&target)?, before);
+        assert_eq!(
+            Database::list_backups()?
+                .into_iter()
+                .map(|entry| entry.filename)
+                .collect::<Vec<_>>(),
+            files_before
+        );
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn hq_import_rejects_settings_trigger_plaintext_copy_before_live_changes(
+    ) -> Result<(), AppError> {
+        let _test_home = TestHomeGuard::new();
+        let source = Database::memory()?;
+        insert_legacy_hq(&source, HQ_DUMMY_SECRET)?;
+        let old_export = {
+            let conn = crate::database::lock_conn!(source.conn);
+            conn.execute_batch("CREATE TABLE copied_keys(value TEXT); CREATE TRIGGER copy_old_hq AFTER UPDATE ON settings BEGIN INSERT INTO copied_keys(value) VALUES(OLD.value); END;")?;
+            Database::dump_sql(&conn, &[])?
+        };
+        let target = Database::memory()?;
+        target.set_setting("unrelated-live-setting", "must-stay")?;
+        let files_before = Database::list_backups()?
+            .into_iter()
+            .map(|entry| entry.filename)
+            .collect::<Vec<_>>();
+        let error = target
+            .import_sql_string(&old_export)
+            .expect_err("a settings trigger must not copy plaintext during encryption");
+        assert!(!error.to_string().contains(HQ_DUMMY_SECRET));
+        assert_eq!(
+            target.get_setting("unrelated-live-setting")?.as_deref(),
+            Some("must-stay")
+        );
+        assert_eq!(
+            Database::list_backups()?
+                .into_iter()
+                .map(|entry| entry.filename)
+                .collect::<Vec<_>>(),
+            files_before
+        );
+        let conn = crate::database::lock_conn!(target.conn);
+        assert!(!Database::table_exists(&conn, "copied_keys")?);
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn hq_managed_legacy_backup_migration_preserves_other_data_and_unknown_files(
+    ) -> Result<(), AppError> {
+        let test_home = TestHomeGuard::new();
+        let db = Database::memory()?;
+        let root = crate::config::get_app_config_dir().join("backups");
+        std::fs::create_dir_all(&root).map_err(|e| AppError::io(&root, e))?;
+        let legacy_path = root.join("db_backup_20261031_010203.db");
+        {
+            let legacy = Connection::open(&legacy_path)?;
+            legacy.execute_batch("CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES('retain-me');")?;
+            legacy.execute(
+                "INSERT INTO settings VALUES('hq.connections.v1',?1)",
+                [legacy_hq_value(HQ_DUMMY_SECRET)],
+            )?;
+        }
+        let unknown = root.join("unrelated.db");
+        std::fs::write(&unknown, b"not a sqlite backup").map_err(|e| AppError::io(&unknown, e))?;
+        let manual_sql = test_home.path().join("manually-exported.sql");
+        std::fs::write(&manual_sql, b"manual export outside managed directory")
+            .map_err(|e| AppError::io(&manual_sql, e))?;
+        assert_eq!(db.migrate_managed_hq_backups()?, 1);
+        assert_eq!(db.migrate_managed_hq_backups()?, 0);
+        let legacy =
+            Connection::open_with_flags(&legacy_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let raw: String = legacy.query_row(
+            "SELECT value FROM settings WHERE key='hq.connections.v1'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_hq_setting_is_protected(&raw);
+        assert_eq!(
+            legacy.query_row("SELECT value FROM unrelated", [], |row| row
+                .get::<_, String>(0))?,
+            "retain-me"
+        );
+        drop(legacy);
+        let bytes = std::fs::read(&legacy_path).map_err(|e| AppError::io(&legacy_path, e))?;
+        assert!(!bytes
+            .windows(HQ_DUMMY_SECRET.len())
+            .any(|window| window == HQ_DUMMY_SECRET.as_bytes()));
+        assert_eq!(
+            std::fs::read(&unknown).map_err(|e| AppError::io(&unknown, e))?,
+            b"not a sqlite backup"
+        );
+        assert_eq!(
+            std::fs::read(&manual_sql).map_err(|e| AppError::io(&manual_sql, e))?,
+            b"manual export outside managed directory"
+        );
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn hq_import_error_messages_do_not_echo_sql_credentials_or_paths() -> Result<(), AppError> {
+        let _test_home = TestHomeGuard::new();
+        let target = Database::memory()?;
+        for body in [
+            format!("SELEC '{HQ_DUMMY_SECRET}';"),
+            format!("ATTACH DATABASE '{HQ_DUMMY_SECRET}' AS rejected;"),
+        ] {
+            let sql = format!("{}\n{body}\n", super::CC_SWITCH_SQL_EXPORT_HEADER);
+            let error = target
+                .import_sql_string(&sql)
+                .expect_err("invalid or cross-file input must fail");
+            assert!(!error.to_string().contains(HQ_DUMMY_SECRET));
+            assert!(!error.to_string().contains(&body));
+        }
+        Ok(())
     }
 
     #[test]

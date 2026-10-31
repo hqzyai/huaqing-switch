@@ -21,6 +21,7 @@ pub struct Config {
     pub static_dir: PathBuf,
     pub admin_token: String,
     pub inference_token: String,
+    pub provider_key_file: PathBuf,
 }
 impl Config {
     pub fn from_env() -> Result<Self> {
@@ -33,8 +34,12 @@ impl Config {
         validate_token_roles(&admin_token, &inference_token)?;
         let data_dir = PathBuf::from(required("HQ_SWITCH_DATA_DIR")?);
         let static_dir = PathBuf::from(required("HQ_SWITCH_STATIC_DIR")?);
+        let provider_key_file = PathBuf::from(required("HQ_SWITCH_PROVIDER_KEY_FILE")?);
         if !data_dir.is_absolute() || !static_dir.is_absolute() {
             bail!("data and static directories must be absolute");
+        }
+        if !provider_key_file.is_absolute() || provider_key_file.starts_with(&data_dir) {
+            bail!("provider encryption key must use an absolute private path outside the data directory");
         }
         if data_dir
             .symlink_metadata()
@@ -79,6 +84,7 @@ impl Config {
             static_dir,
             admin_token,
             inference_token,
+            provider_key_file,
         };
         if config.web_bind.port() == 0
             || config.gateway_bind.port() == 0

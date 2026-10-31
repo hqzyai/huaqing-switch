@@ -5,13 +5,16 @@ pub struct Database {
     #[cfg(not(test))]
     _instance_lock: std::fs::File,
     pub(crate) conn: Mutex<rusqlite::Connection>,
+    pub(crate) secrets: crate::hq::secrets::SecretProtector,
     // Shared HQ storage tests construct the desktop-shaped test adapter.
     #[cfg(test)]
     #[allow(dead_code)]
     pub(crate) log_count_cache: Mutex<Option<u64>>,
 }
 impl Database {
-    pub fn open(path: &Path) -> anyhow::Result<Self> {
+    pub fn open(path: &Path, provider_key_file: &Path) -> anyhow::Result<Self> {
+        let secrets = crate::hq::secrets::SecretProtector::from_key_file(provider_key_file)
+            .map_err(anyhow::Error::msg)?;
         if path
             .symlink_metadata()
             .is_ok_and(|m| m.file_type().is_symlink())
@@ -35,10 +38,12 @@ impl Database {
         let conn = rusqlite::Connection::open(path)?;
         conn.busy_timeout(Duration::from_secs(5))?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY NOT NULL,value TEXT NOT NULL);")?;
+        crate::hq::migrate_connection_storage(&conn, &secrets).map_err(anyhow::Error::msg)?;
         Ok(Self {
             #[cfg(not(test))]
             _instance_lock: instance_lock,
             conn: Mutex::new(conn),
+            secrets,
             #[cfg(test)]
             log_count_cache: Mutex::new(None),
         })
@@ -51,6 +56,7 @@ impl Database {
         )?;
         Ok(Self {
             conn: Mutex::new(conn),
+            secrets: crate::hq::secrets::SecretProtector::memory().map_err(anyhow::Error::msg)?,
             log_count_cache: Mutex::new(None),
         })
     }

@@ -2220,7 +2220,7 @@ dependencies = [
 
 [[package]]
 name = "hq-model-switch"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "arboard",
@@ -2231,6 +2231,7 @@ dependencies = [
  "brotli 7.0.0",
  "bytes",
  "chrono",
+ "core-foundation 0.10.1",
  "dirs 5.0.1",
  "flate2",
  "futures",
@@ -2257,11 +2258,14 @@ dependencies = [
  "png 0.18.1",
  "regex",
  "reqwest 0.12.28",
+ "ring",
  "rquickjs",
  "rusqlite",
  "rust_decimal",
  "rustls",
  "rustls-native-certs",
+ "security-framework",
+ "security-framework-sys",
  "serde",
  "serde_json",
  "serde_yaml",

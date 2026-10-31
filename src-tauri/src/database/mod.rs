@@ -77,6 +77,7 @@ pub(crate) use lock_conn;
 /// rusqlite::Connection 本身不是 Sync 的，因此需要这层包装。
 pub struct Database {
     pub(crate) conn: Mutex<Connection>,
+    pub(crate) secrets: crate::hq::secrets::SecretProtector,
     /// 请求日志总数缓存，见 `services::usage_stats::LogCountCache`
     pub(crate) log_count_cache: Mutex<Option<crate::services::usage_stats::LogCountCache>>,
 }
@@ -99,14 +100,42 @@ impl Database {
     /// 数据库文件位于 `~/.hq-model-switch/hq-model-switch.db`
     pub fn init() -> Result<Self, AppError> {
         let db_path = get_app_config_dir().join("hq-model-switch.db");
+        if db_path
+            .symlink_metadata()
+            .is_ok_and(|m| m.file_type().is_symlink())
+        {
+            return Err(AppError::Config("数据库不能使用符号链接".into()));
+        }
         let db_exists = db_path.exists();
 
         // 确保父目录存在
         if let Some(parent) = db_path.parent() {
+            if parent
+                .symlink_metadata()
+                .is_ok_and(|m| m.file_type().is_symlink())
+            {
+                return Err(AppError::Config("配置目录不能使用符号链接".into()));
+            }
             std::fs::create_dir_all(parent).map_err(|e| AppError::io(parent, e))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
+                    .map_err(|e| AppError::io(parent, e))?;
+                if db_path.exists() {
+                    std::fs::set_permissions(&db_path, std::fs::Permissions::from_mode(0o600))
+                        .map_err(|e| AppError::io(&db_path, e))?;
+                }
+            }
         }
 
         let conn = Connection::open(&db_path).map_err(|e| AppError::Database(e.to_string()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&db_path, std::fs::Permissions::from_mode(0o600))
+                .map_err(|e| AppError::io(&db_path, e))?;
+        }
 
         // 启用外键约束
         conn.execute("PRAGMA foreign_keys = ON;", [])
@@ -121,9 +150,20 @@ impl Database {
 
         let db = Self {
             conn: Mutex::new(conn),
+            secrets: crate::hq::secrets::SecretProtector::desktop(&get_app_config_dir())
+                .map_err(AppError::Config)?,
             log_count_cache: Mutex::new(None),
         };
         db.create_tables()?;
+        {
+            let conn = lock_conn!(db.conn);
+            crate::hq::migrate_connection_storage(&conn, &db.secrets).map_err(AppError::Config)?;
+        }
+        db.migrate_managed_hq_backups()?;
+        // Credential migration precedes every possible safety backup. The
+        // package default is committed before the gateway can accept requests.
+        #[cfg(feature = "desktop")]
+        crate::hq::apply_bundled_default(&db).map_err(AppError::Config)?;
 
         // Pre-migration backup: only when upgrading from an existing database
         {
@@ -196,6 +236,7 @@ impl Database {
 
         let db = Self {
             conn: Mutex::new(conn),
+            secrets: crate::hq::secrets::SecretProtector::memory().map_err(AppError::Config)?,
             log_count_cache: Mutex::new(None),
         };
         db.create_tables()?;

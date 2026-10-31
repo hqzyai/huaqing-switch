@@ -65,6 +65,8 @@ def private_store(snapshot):
         row = connection.execute("SELECT value FROM settings WHERE key=?", ("hq.connections.v1",)).fetchone()
     require(row is not None, "Switch connection store is missing")
     store = json.loads(row[0])
+    require("formatVersion" not in store and not any("credential" in item for item in store["connections"]),
+            "Encrypted/versioned Switch store (formatVersion/credential) is unsupported by this legacy registration; use Switch management operations, never extract provider keys")
     if store["revision"] != snapshot["revision"]:
         raise Conflict()
     return store

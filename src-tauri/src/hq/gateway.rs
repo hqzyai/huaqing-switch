@@ -276,7 +276,7 @@ impl Gateway {
         let db = self.0.db.clone();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn.lock().map_err(|_| "存储暂不可用".to_string())?;
-            load(&conn)
+            load(&db, &conn)
         })
         .await
         .map_err(|_| {
@@ -904,7 +904,13 @@ mod tests {
             max_output_tokens: 4096,
             supports_images: false,
         };
-        let value = json!({"revision":1,"activeId":connection.id,"connections":[connection]});
+        // Deliberate pre-encryption fixture exercises the shared legacy upgrade.
+        let value = json!({"revision":1,"activeId":connection.id,"connections":[{
+            "id":connection.id,"name":connection.name,"protocol":connection.protocol,
+            "baseUrl":connection.base_url,"model":connection.model,"apiKey":connection.api_key,
+            "revision":connection.revision,"contextWindow":connection.context_window,
+            "maxOutputTokens":connection.max_output_tokens,"supportsImages":connection.supports_images
+        }]});
         gateway
             .0
             .db

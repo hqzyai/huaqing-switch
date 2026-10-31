@@ -17,7 +17,7 @@ impl Database {
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, AppError> {
         let conn = lock_conn!(self.conn);
         let mut stmt = conn
-            .prepare("SELECT value FROM settings WHERE key = ?1")
+            .prepare("SELECT value FROM main.settings WHERE key = ?1")
             .map_err(|e| AppError::Database(e.to_string()))?;
 
         let mut rows = stmt
@@ -47,9 +47,12 @@ impl Database {
 
     /// 设置值
     pub fn set_setting(&self, key: &str, value: &str) -> Result<(), AppError> {
+        let protected = crate::hq::protect_setting_value(key, value, &self.secrets)
+            .map_err(AppError::Config)?;
+        let value = protected.as_deref().unwrap_or(value);
         let conn = lock_conn!(self.conn);
         conn.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+            "INSERT OR REPLACE INTO main.settings (key, value) VALUES (?1, ?2)",
             params![key, value],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
@@ -82,7 +85,7 @@ impl Database {
             self.set_setting(&key, "true")
         } else {
             let conn = lock_conn!(self.conn);
-            conn.execute("DELETE FROM settings WHERE key = ?1", params![key])
+            conn.execute("DELETE FROM main.settings WHERE key = ?1", params![key])
                 .map_err(|e| AppError::Database(e.to_string()))?;
             Ok(())
         }
@@ -109,7 +112,7 @@ impl Database {
         } else {
             let conn = lock_conn!(self.conn);
             conn.execute(
-                "DELETE FROM settings WHERE key = ?1",
+                "DELETE FROM main.settings WHERE key = ?1",
                 params![Self::LEGACY_COMMON_CONFIG_MIGRATED_KEY],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -129,7 +132,7 @@ impl Database {
         } else {
             // 如果为 None 则删除
             let conn = lock_conn!(self.conn);
-            conn.execute("DELETE FROM settings WHERE key = ?1", params![key])
+            conn.execute("DELETE FROM main.settings WHERE key = ?1", params![key])
                 .map_err(|e| AppError::Database(e.to_string()))?;
             Ok(())
         }
@@ -161,7 +164,7 @@ impl Database {
                 // 清除代理设置
                 let conn = lock_conn!(self.conn);
                 conn.execute(
-                    "DELETE FROM settings WHERE key = ?1",
+                    "DELETE FROM main.settings WHERE key = ?1",
                     params![Self::GLOBAL_PROXY_URL_KEY],
                 )
                 .map_err(|e| AppError::Database(e.to_string()))?;
@@ -210,7 +213,7 @@ impl Database {
         let conn = lock_conn!(self.conn);
         let count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM settings WHERE key LIKE 'proxy_takeover_%' AND value = 'true'",
+                "SELECT COUNT(*) FROM main.settings WHERE key LIKE 'proxy_takeover_%' AND value = 'true'",
                 [],
                 |row| row.get(0),
             )
@@ -228,7 +231,7 @@ impl Database {
     pub fn clear_all_proxy_takeover(&self) -> Result<(), AppError> {
         let conn = lock_conn!(self.conn);
         conn.execute(
-            "UPDATE settings SET value = 'false' WHERE key LIKE 'proxy_takeover_%'",
+            "UPDATE main.settings SET value = 'false' WHERE key LIKE 'proxy_takeover_%'",
             [],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;

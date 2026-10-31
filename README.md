@@ -35,11 +35,13 @@ CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo t
 
 GitHub Actions 的 `Desktop acceptance packages` 工作流（`windows-acceptance.yml`）生成 Windows x64 MSI 和 macOS 通用 DMG，Mac 包同时包含 Intel 与 Apple Silicon 架构。手动运行 `gh workflow run windows-acceptance.yml --ref dev`；两个任务固定检出本次运行的提交，产物附源码 SHA、架构、签名状态和 SHA256 清单。
 
+发布客户端通过仓库的 `HQ_SWITCH_BOOTSTRAP_BUNDLE` Secret 配置默认阿里云连接，新安装即可使用，不需要输入 API Key。缺少或损坏默认配置时，打包会失败。默认凭据封装仅用于避免意外明文暴露，客户端能够恢复它，不能承诺防止安装包逆向提取。运行后保存的 HQ 连接使用独立的系统保护；迁移、默认配置更新及备份恢复行为见 [HQ 密钥与默认连接](docs/hq-credentials.md)。
+
 当前未配置发行签名证书：Windows 包未签名，Mac 包使用 ad-hoc 签名且未公证；首次安装需按系统提示确认来源。安装包通过产物验证后单独上传 Release，工作流不会自动覆盖既有发行资产。
 
 ## 品牌与数据
 
-- 产品：Huaqing Switch，桌面版本 `0.1.1`，应用 ID `app.hqmodelswitch.desktop`。
+- 产品：Huaqing Switch，桌面版本 `0.1.2`，应用 ID `app.hqmodelswitch.desktop`。
 - 默认数据：`~/.hq-model-switch/`，数据库 `hq-model-switch.db`。
 - 深链：`hqmodelswitch://`；本机代理默认端口 `17621`。
 - 自动发现：当前用户主目录下的 `.huaqing-switch/connector.json`，只包含本机访问凭证，不包含供应商密钥。端口冲突会报错并允许重试。

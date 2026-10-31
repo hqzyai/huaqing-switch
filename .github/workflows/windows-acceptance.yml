@@ -120,7 +120,13 @@ jobs:
 
       - name: Build unsigned release MSI
         # Tauri runs build:renderer, including prepare-brand-assets.mjs, before Cargo.
+        env:
+          HQ_SWITCH_BOOTSTRAP_BUNDLE: ${{ secrets.HQ_SWITCH_BOOTSTRAP_BUNDLE }}
+          HQ_SWITCH_REQUIRE_BOOTSTRAP: "1"
         run: |
+          if ([string]::IsNullOrWhiteSpace($env:HQ_SWITCH_BOOTSTRAP_BUNDLE)) {
+            throw 'Release packaging requires the default provider bootstrap secret.'
+          }
           New-Item -ItemType Directory -Path 'validation/windows-diagnostics' -Force | Out-Null
           pnpm exec tauri build --verbose --ci --bundles msi --no-sign -- --locked 2>&1 |
             Tee-Object -FilePath 'validation/windows-diagnostics/tauri-build.log'
@@ -292,8 +298,15 @@ jobs:
 
       - name: Build ad-hoc universal release DMG
         # No Apple certificate or notarization credentials are required for '-'.
+        env:
+          HQ_SWITCH_BOOTSTRAP_BUNDLE: ${{ secrets.HQ_SWITCH_BOOTSTRAP_BUNDLE }}
+          HQ_SWITCH_REQUIRE_BOOTSTRAP: "1"
         run: |
           set -euo pipefail
+          if [ -z "${HQ_SWITCH_BOOTSTRAP_BUNDLE:-}" ]; then
+            echo 'Release packaging requires the default provider bootstrap secret.' >&2
+            exit 1
+          fi
           mkdir -p validation/macos-diagnostics
           pnpm exec tauri build --verbose --ci --target universal-apple-darwin --bundles app,dmg -- --locked 2>&1 |
             tee validation/macos-diagnostics/tauri-build.log

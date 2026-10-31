@@ -81,13 +81,17 @@ def write_json(path,value):
 
 def store():
     db=sqlite3.connect((ROOT/"state/data/switch.sqlite").as_uri()+"?mode=ro",uri=True)
-    try:return json.loads(db.execute("SELECT value FROM settings WHERE key=?",("hq.connections.v1",)).fetchone()[0])
+    try:value=json.loads(db.execute("SELECT value FROM settings WHERE key=?",("hq.connections.v1",)).fetchone()[0])
     finally:db.close()
+    if "formatVersion"in value or any("credential"in row for row in value["connections"]):
+        raise RuntimeError("Encrypted/versioned Switch store (formatVersion/credential) is unsupported by this legacy importer; use Switch management operations, never extract provider keys")
+    return value
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument("action",choices=["plan","apply","verify","rollback"]);parser.add_argument("--backup-dir",type=Path);parser.add_argument("--admin-url",default="http://192.168.2.11:28001")
     args=parser.parse_args();assert ROOT.is_dir();os.umask(0o077)
     parsed=urlsplit(args.admin_url);assert parsed.scheme in ("http","https") and parsed.hostname=="192.168.2.11" and parsed.port==28001 and not parsed.path.strip("/") and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment
+    store() # Refuse encrypted/versioned storage before any migration backups or writes.
     if args.action=="plan":
         rows=read_chat_routes();assert len(rows)==3
         print(json.dumps({"passed":True,"action":"plan","sourceRoutes":rows,"switchNonempty":len(store()["connections"])>0,"businessWritesPerformed":False,"modelCallsPerformed":False}));return
