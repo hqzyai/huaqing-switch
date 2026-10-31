@@ -1,4 +1,4 @@
-name: Windows acceptance package
+name: Desktop acceptance packages
 
 on:
   workflow_dispatch:
@@ -8,6 +8,7 @@ on:
       - ".github/workflows/windows-acceptance.yml"
       - "src-tauri/tauri.windows.conf.json"
       - "src-tauri/wix/**"
+      - "scripts/prepare-brand-assets.mjs"
 
 permissions:
   contents: read
@@ -33,7 +34,7 @@ jobs:
       - name: Checkout dev source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.event_name == 'push' && github.sha || 'dev' }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Check disk space and native build tools
@@ -157,12 +158,15 @@ jobs:
           "$hash  $($msi.Name)" | Set-Content -Path (Join-Path $output.FullName 'SHA256SUMS.txt') -Encoding utf8NoBOM
           $source = git rev-parse HEAD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($source -ne $env:GITHUB_SHA) { throw 'Checkout differs from the workflow source commit.' }
           $signature = (Get-AuthenticodeSignature -LiteralPath $msi.FullName).Status.ToString()
           if ($signature -ne 'NotSigned') { throw "Unexpected MSI signature status: $signature" }
+          $brand = Get-Content -LiteralPath 'brand.config.json' -Raw | ConvertFrom-Json
           @{
-            product = 'Huaqing Switch'
+            product = $brand.productName
+            version = $brand.version
             sourceCommit = $source
-            sourceBranch = 'dev'
+            sourceBranch = $env:GITHUB_REF_NAME
             target = 'x86_64-pc-windows-msvc'
             signing = 'unsigned acceptance build'
             authenticodeStatus = $signature
@@ -185,3 +189,214 @@ jobs:
       - name: Report final disk space
         if: always()
         run: Get-PSDrive -Name C | Select-Object Name, Used, Free | Format-Table
+
+  macos-package:
+    name: Ad-hoc macOS universal DMG
+    runs-on: macos-15
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: "true"
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+      APPLE_SIGNING_IDENTITY: "-"
+    steps:
+      - name: Checkout immutable source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Check disk space and native build tools
+        run: |
+          set -euo pipefail
+          df -h .
+          # Disposable hosted runners have a smaller disk than the user's Mac.
+          python3 - <<'PY'
+          import os
+          disk = os.statvfs('.')
+          if disk.f_bavail * disk.f_frsize < 10 * 1024**3:
+              raise SystemExit('macOS universal packaging requires at least 10 GiB free.')
+          PY
+          test "$(uname -s)" = Darwin
+          xcode-select -p
+          xcrun --find clang
+          xcrun --find lipo
+          command -v codesign
+          command -v hdiutil
+
+      - name: Setup pinned build Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22.12.0"
+          package-manager-cache: false
+
+      - name: Setup pinned pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: "10.12.3"
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-store
+        run: |
+          set -euo pipefail
+          test "$(pnpm --version)" = '10.12.3'
+          echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
+
+      - name: Install locked dependencies and generate brand assets
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify pinned Rust toolchain
+        run: grep -Eq '^channel[[:space:]]*=[[:space:]]*"1\.95"[[:space:]]*$' rust-toolchain.toml
+
+      - name: Setup pinned Rust and both macOS targets
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.95"
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: macos-universal-release
+          cache-on-failure: true
+
+      - name: Check disk space before release build
+        run: |
+          set -euo pipefail
+          df -h .
+          python3 - <<'PY'
+          import os
+          disk = os.statvfs('.')
+          if disk.f_bavail * disk.f_frsize < 8 * 1024**3:
+              raise SystemExit('Less than 8 GiB remains after dependency/cache setup.')
+          PY
+          node --version
+          pnpm --version
+          rustc --version
+          cargo --version
+
+      - name: Build ad-hoc universal release DMG
+        # No Apple certificate or notarization credentials are required for '-'.
+        run: |
+          set -euo pipefail
+          mkdir -p validation/macos-diagnostics
+          pnpm exec tauri build --verbose --ci --target universal-apple-darwin --bundles dmg -- --locked 2>&1 |
+            tee validation/macos-diagnostics/tauri-build.log
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: huaqing-switch-macos-universal-diagnostics-${{ github.run_id }}
+          path: validation/macos-diagnostics/
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
+
+      - name: Verify DMG contents and collect checksums
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, plistlib, shutil, subprocess, tempfile
+
+          def run(*args, **kwargs):
+              return subprocess.run(args, check=True, **kwargs)
+
+          bundle = pathlib.Path('src-tauri/target/universal-apple-darwin/release/bundle')
+          dmgs = list((bundle / 'dmg').glob('*.dmg'))
+          apps = list((bundle / 'macos').glob('*.app'))
+          if len(dmgs) != 1 or len(apps) != 1:
+              raise SystemExit(f'Expected one DMG and one application; found {len(dmgs)}, {len(apps)}.')
+          dmg, app = dmgs[0].resolve(), apps[0].resolve()
+          brand = json.loads(pathlib.Path('brand.config.json').read_text())
+          info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
+          if info['CFBundleIdentifier'] != brand['identifier'] or info['CFBundleShortVersionString'] != brand['version']:
+              raise SystemExit('Built application identity or version differs from brand configuration.')
+          source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if source != os.environ['GITHUB_SHA']:
+              raise SystemExit('Checkout differs from the workflow source commit.')
+          executable = pathlib.Path('Contents/MacOS') / info['CFBundleExecutable']
+
+          def verify_app(path):
+              run('codesign', '--verify', '--deep', '--strict', '--verbose=2', str(path))
+              signature = run('codesign', '--display', '--verbose=4', str(path), capture_output=True, text=True).stderr
+              if 'Signature=adhoc' not in signature:
+                  raise SystemExit('Expected an ad-hoc application signature.')
+              archs = subprocess.check_output(['lipo', '-archs', str(path / executable)], text=True).split()
+              if set(archs) != {'arm64', 'x86_64'}:
+                  raise SystemExit(f'Unexpected application architectures: {archs}')
+              run('lipo', '-verify_arch', 'arm64', 'x86_64', str(path / executable))
+              return sorted(archs)
+
+          archs = verify_app(app)
+          run('hdiutil', 'verify', str(dmg))
+          with tempfile.TemporaryDirectory(prefix='hq-switch-dmg-', dir=os.environ['RUNNER_TEMP']) as temporary:
+              mount = pathlib.Path(temporary) / 'volume'
+              mount.mkdir()
+              attached = False
+              try:
+                  run('hdiutil', 'attach', '-readonly', '-nobrowse', '-mountpoint', str(mount), str(dmg))
+                  attached = True
+                  mounted_apps = list(mount.glob('*.app'))
+                  if len(mounted_apps) != 1 or mounted_apps[0].name != app.name:
+                      raise SystemExit('DMG contains an unexpected application.')
+                  verify_app(mounted_apps[0])
+                  run('diff', '-qr', str(app), str(mounted_apps[0]))
+              finally:
+                  if attached:
+                      run('hdiutil', 'detach', str(mount))
+
+          output = pathlib.Path('validation/macos-package')
+          output.mkdir(parents=True, exist_ok=True)
+          installer = output / dmg.name
+          shutil.copy2(dmg, installer)
+          digest = hashlib.sha256(installer.read_bytes()).hexdigest()
+          (output / 'SHA256SUMS.txt').write_text(f'{digest}  {installer.name}\n')
+          manifest = {
+              'product': brand['productName'], 'version': brand['version'],
+              'sourceCommit': source, 'sourceBranch': os.environ['GITHUB_REF_NAME'],
+              'target': 'universal-apple-darwin', 'architectures': archs,
+              'minimumSystemVersion': info.get('LSMinimumSystemVersion'),
+              'signing': 'ad-hoc acceptance build', 'notarized': False,
+              'codesignVerified': True, 'dmgVerified': True, 'dmgContentsVerified': True,
+              'file': installer.name, 'sha256': digest,
+              'workflowRun': f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+          }
+          (output / 'package.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          (output / 'README.txt').write_text(
+              'Huaqing Switch macOS universal acceptance installer (Apple Silicon and Intel).\n'
+              'Ad-hoc signed; not notarized by Apple. macOS may require approval in Privacy & Security.\n'
+              'Package integrity, both CPU architectures and signatures were verified in CI.\n'
+              'This does not establish target-machine installation or model-service acceptance.\n'
+          )
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f'Ad-hoc macOS universal DMG: **{installer.name}**; source: **{source}**; SHA256: `{digest}`.\n')
+          print(json.dumps(manifest))
+          PY
+
+      - name: Upload ad-hoc universal acceptance package
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: huaqing-switch-macos-universal-adhoc-${{ github.run_id }}
+          path: validation/macos-package/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Report final disk space
+        if: always()
+        run: df -h .

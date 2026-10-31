@@ -33,6 +33,10 @@ CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 cargo t
 
 用于实际验证的未签名本机应用包：`pnpm tauri build --debug --bundles app --no-sign`。它不是完成签名、公证和跨平台验收的正式发行包。
 
+GitHub Actions 的 `Desktop acceptance packages` 工作流（`windows-acceptance.yml`）生成 Windows x64 MSI 和 macOS 通用 DMG，Mac 包同时包含 Intel 与 Apple Silicon 架构。手动运行 `gh workflow run windows-acceptance.yml --ref dev`；两个任务固定检出本次运行的提交，产物附源码 SHA、架构、签名状态和 SHA256 清单。
+
+当前未配置发行签名证书：Windows 包未签名，Mac 包使用 ad-hoc 签名且未公证；首次安装需按系统提示确认来源。安装包通过产物验证后单独上传 Release，工作流不会自动覆盖既有发行资产。
+
 ## 品牌与数据
 
 - 产品：Huaqing Switch，桌面版本 `0.1.1`，应用 ID `app.hqmodelswitch.desktop`。
