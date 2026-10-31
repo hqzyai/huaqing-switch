@@ -38,7 +38,7 @@ MIT LICENSE 保留原文和上游版权。旧 Codex provider ID、历史迁移�
 
 `scripts/prepare-brand-assets.mjs` 在安装、开发和构建时验证标志哈希、复制 107 个字体子集，生成精确字体家族别名、favicon、桌面图标及许可证清单。字体家族为 Geist / Noto Sans SC / Geist Mono，关闭字体合成。生成的字体、图标和许可证目录不入 Git；完整规范目录与锁文件是可重建输入，不能只分发 SKILL.md。
 
-运行包包含字体文件和 `licenses/`；其中 `assets.json` 记录版本、权利说明及每个字体文件的 SHA-256。应用包另附上游 MIT、UPSTREAM.md 和品牌参数。图标转换使用项目已有的 Tauri CLI，为非正方形原图留透明边距。
+运行包包含字体文件和 `licenses/`；其中 `assets.json` 记录版本、权利说明及每个字体文件的 SHA-256。应用包另附上游 MIT、UPSTREAM.md 和品牌参数。图标转换使用项目已有的 Tauri CLI，将非正方形原图等比置于不透明的纯白方形背景上。
 
 参考官方接口：[shadcn theming](https://ui.shadcn.com/docs/theming)、[shadcn Button](https://ui.shadcn.com/docs/components/button)、[Lucide React](https://lucide.dev/guide/packages/lucide-react)。它们用于核对语义和接口；本次保留了仓库已有定制行为，没有声称所有组件均被最新官方源码替换。
 
@@ -51,7 +51,7 @@ MIT LICENSE 保留原文和上游版权。旧 Codex provider ID、历史迁移�
 | 控件与圆角      | control 6px，panel 12px，菜单/浮层 8px，badge 4px，tooltip 6px                     | Button、Input、Select、Card、Dialog、Badge、Popover、Tooltip 等 |
 | 控件密度        | 标准 36px、compact 32px；焦点、hover、active、disabled 状态集中处理                | 表单、设置、搜索、供应商管理                                    |
 | 阴影 / 覆盖层   | 规范中的明暗阴影和遮罩；卡片去装饰阴影                                             | Radix portal、对话框、菜单                                      |
-| Logo            | 同源 SVG，标准 28px 图像框等比显示                                                 | 侧栏、关于页、favicon；安装图标为透明留白转换版                 |
+| Logo            | 同源 SVG，标准 28px 图像框等比显示                                                 | 侧栏、关于页、favicon；安装图标为纯白背景转换版                 |
 
 原橙色操作主题改为规范中的中性色。直连/路由/聚合、健康状态、图表和供应商品牌颜色保留业务含义。常规设置和供应商界面的局部字级、圆角与操作图标一并调整；现有导航、表单状态、路由、请求协议和拖拽逻辑不因换肤重写。
 
