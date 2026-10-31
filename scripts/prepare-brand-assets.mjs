@@ -159,8 +159,9 @@ await writeFile(
   ) + "\n",
 );
 
-// A square application icon frame preserves the source artwork's 793:568 ratio.
-const square = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><svg x="112" y="225.5" width="800" height="573" viewBox="0 0 793 568">${logo.toString().replace(/<\?xml[^>]*>|<\/?svg[^>]*>/g, "")}</svg></svg>`;
+// An opaque white frame keeps the source artwork's 793:568 ratio and gives
+// desktop icons a consistent background on every platform.
+const square = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#ffffff"/><svg x="112" y="225.5" width="800" height="573" viewBox="0 0 793 568">${logo.toString().replace(/<\?xml[^>]*>|<\/?svg[^>]*>/g, "")}</svg></svg>`;
 const iconSource = path.join(output, "app-icon.svg");
 await writeFile(iconSource, square);
 execFileSync(
