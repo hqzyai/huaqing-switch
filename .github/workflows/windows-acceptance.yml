@@ -342,7 +342,7 @@ jobs:
               archs = subprocess.check_output(['lipo', '-archs', str(path / executable)], text=True).split()
               if set(archs) != {'arm64', 'x86_64'}:
                   raise SystemExit(f'Unexpected application architectures: {archs}')
-              run('lipo', '-verify_arch', 'arm64', 'x86_64', str(path / executable))
+              run('lipo', str(path / executable), '-verify_arch', 'arm64', 'x86_64')
               return sorted(archs)
 
           archs = verify_app(app)
