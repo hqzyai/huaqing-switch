@@ -272,6 +272,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
           shared-key: macos-universal-release
+          cache-workspace-crates: true
           cache-on-failure: true
 
       - name: Check disk space before release build
@@ -294,7 +295,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p validation/macos-diagnostics
-          pnpm exec tauri build --verbose --ci --target universal-apple-darwin --bundles dmg -- --locked 2>&1 |
+          pnpm exec tauri build --verbose --ci --target universal-apple-darwin --bundles app,dmg -- --locked 2>&1 |
             tee validation/macos-diagnostics/tauri-build.log
 
       - name: Upload build diagnostics
@@ -302,7 +303,9 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: huaqing-switch-macos-universal-diagnostics-${{ github.run_id }}
-          path: validation/macos-diagnostics/
+          path: |
+            validation/macos-diagnostics/
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: warn
           retention-days: 14
           compression-level: 0
