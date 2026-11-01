@@ -6,6 +6,7 @@ import {
   writeFile,
   copyFile,
   readdir,
+  rm,
 } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -159,13 +160,16 @@ await writeFile(
   ) + "\n",
 );
 
-// An opaque white frame keeps the source artwork's 793:568 ratio and gives
-// desktop icons a consistent background on every platform.
-const square = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#ffffff"/><svg x="112" y="225.5" width="800" height="573" viewBox="0 0 793 568">${logo.toString().replace(/<\?xml[^>]*>|<\/?svg[^>]*>/g, "")}</svg></svg>`;
+// Match Huaqing Desktop's rounded white plate and artwork placement. Only the
+// area outside the plate is transparent; the logo retains its solid white base.
+const square = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1000 1000"><rect x="32" y="32" width="936" height="936" rx="208" fill="#ffffff"/><svg x="103.5" y="216" width="793" height="568" viewBox="0 0 793 568">${logo.toString().replace(/<\?xml[^>]*>|<\/?svg[^>]*>/g, "")}</svg></svg>`;
 const iconSource = path.join(output, "app-icon.svg");
 await writeFile(iconSource, square);
 const iconOutput = path.join(root, "src-tauri/icons/hq");
 const iconCli = path.join(root, "node_modules/@tauri-apps/cli/tauri.js");
+// Recreate this generated directory so old representations cannot retain a
+// different icon shape after a branding rebuild.
+await rm(iconOutput, { recursive: true, force: true });
 execFileSync(
   process.execPath,
   [iconCli, "icon", iconSource, "--output", iconOutput],
@@ -182,14 +186,17 @@ for (let offset = 8; offset < icns.length; ) {
     throw new Error("Invalid generated ICNS entry");
   }
   if (
-    icns.subarray(offset + 8, offset + 16).toString("hex") === "89504e470d0a1a0a"
+    icns.subarray(offset + 8, offset + 16).toString("hex") ===
+    "89504e470d0a1a0a"
   ) {
     icnsChunks.push(icns.subarray(offset, offset + length));
   }
   offset += length;
 }
 if (icnsChunks.length !== 8) {
-  throw new Error("Expected all eight PNG representations in the generated ICNS");
+  throw new Error(
+    "Expected all eight PNG representations in the generated ICNS",
+  );
 }
 const icnsHeader = Buffer.from(icns.subarray(0, 8));
 icnsHeader.writeUInt32BE(

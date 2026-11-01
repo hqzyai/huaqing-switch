@@ -2,6 +2,13 @@ name: Desktop acceptance packages
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Desktop installer platform
+        type: choice
+        required: true
+        default: both
+        options: [both, windows, macos]
   push:
     branches: [dev]
     paths:
@@ -20,6 +27,7 @@ concurrency:
 jobs:
   package:
     name: Unsigned Windows x64 MSI
+    if: github.event_name == 'push' || inputs.platform == 'both' || inputs.platform == 'windows'
     runs-on: windows-2025
     timeout-minutes: 90
     defaults:
@@ -198,6 +206,7 @@ jobs:
 
   macos-package:
     name: Ad-hoc macOS universal DMG
+    if: github.event_name == 'push' || inputs.platform == 'both' || inputs.platform == 'macos'
     runs-on: macos-15
     timeout-minutes: 120
     defaults:
