@@ -121,7 +121,9 @@ describe("Linux browser management authentication", () => {
     ).toHaveTextContent("运行中");
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
     expect(
-      screen.getByText("Linux 部署版，统一管理 HQ Harness 模型连接与用量。"),
+      screen.getByText(
+        "Linux 部署版，统一管理 Huaqing Harness 模型连接与用量。",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByLabelText("header.windowClose"),

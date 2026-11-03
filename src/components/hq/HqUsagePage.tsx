@@ -213,8 +213,8 @@ export function HqUsagePage({
           <h2 className="text-title">HQ 用量统计</h2>
           <p className="max-w-2xl text-body text-fg-2">
             {serverDeployment
-              ? "统计此服务经 Switch 的 HQ Harness 请求，从部署时开始记录，"
-              : "统计本机经 Switch 的 HQ Harness 请求，从本次升级开始记录，"}
+              ? "统计此服务经 Switch 的 Huaqing Harness 请求，从部署时开始记录，"
+              : "统计本机经 Switch 的 Huaqing Harness 请求，从本次升级开始记录，"}
             升级前的用量不会回填。
           </p>
         </div>
@@ -348,7 +348,7 @@ export function HqUsagePage({
                 此范围暂无已结束的 HQ 请求
               </h3>
               <p className="mt-2 text-body text-fg-2">
-                调整筛选，或在 HQ Harness 中发起请求后刷新。
+                调整筛选，或在 Huaqing Harness 中发起请求后刷新。
               </p>
             </div>
           ) : (

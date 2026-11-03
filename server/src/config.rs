@@ -4,6 +4,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub(crate) const DEFAULT_GATEWAY_BIND: &str = "0.0.0.0:23002";
+
 #[derive(Clone)]
 pub struct HttpManagement {
     pub bind: SocketAddr,
@@ -76,7 +78,7 @@ impl Config {
         )?;
         let config = Self {
             web_bind: bind("HQ_SWITCH_WEB_BIND", "0.0.0.0:8080")?,
-            gateway_bind: bind("HQ_SWITCH_GATEWAY_BIND", "0.0.0.0:17621")?,
+            gateway_bind: bind("HQ_SWITCH_GATEWAY_BIND", DEFAULT_GATEWAY_BIND)?,
             gateway_url,
             public_origin,
             http,

@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HqApp from "@/components/hq/HqApp";
 import type { HqSnapshot } from "@/lib/api/hq";
 
@@ -59,6 +59,8 @@ function renderApp(props: Parameters<typeof HqApp>[0] = {}) {
 }
 
 describe("HQ-only product workspace", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   beforeEach(() => {
     vi.clearAllMocks();
     api.status.mockResolvedValue({
@@ -79,7 +81,7 @@ describe("HQ-only product workspace", () => {
     await screen.findByRole("article", { name: "Development API" });
     const nav = within(screen.getByRole("navigation", { name: "主导航" }));
     expect(nav.getAllByRole("button").map((b) => b.textContent)).toEqual([
-      "HQ Harness",
+      "Huaqing Harness",
       "用量统计",
       "设置",
     ]);
@@ -131,6 +133,44 @@ describe("HQ-only product workspace", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
   });
+
+  it("keeps the native local gateway address in the desktop workspace", async () => {
+    renderApp();
+    expect(
+      await screen.findByText("http://127.0.0.1:17621"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(`${window.location.origin}/model-api`),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each(["http://192.168.2.11:28001", "https://switch.example.test:38443"])(
+    "shows the proxied model entry for the browser origin %s",
+    async (origin) => {
+      vi.stubGlobal("location", new URL(origin));
+      api.status.mockResolvedValue({
+        running: true,
+        address: "http://huaqing-switch:17621",
+        port: 17621,
+        error: null,
+        activeRequests: 0,
+        totalRequests: 0,
+      });
+      renderApp({ onLogout: vi.fn() });
+      expect(
+        await screen.findByText(`${origin}/model-api`),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("http://huaqing-switch:17621"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Huaqing Harness" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Huaqing Harness" }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("offers a state refresh rather than a listener restart in the Linux deployment", async () => {
     api.status.mockResolvedValue({

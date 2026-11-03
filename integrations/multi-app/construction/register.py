@@ -79,7 +79,7 @@ def active_switch_id(base):
     route = re.fullmatch(r"/model-api/hq/services/([0-9a-fA-F-]{36})/v1/?", parsed.path)
     if known_host and port == 28001 and route and not parsed.query and not parsed.fragment:
         return str(uuid.UUID(route.group(1)))
-    require(not (known_host and port in {17621, 28001})
+    require(not (known_host and port in {17621, 23002, 28001})
             and "/hq/services/" not in parsed.path and "/hq/connections/" not in parsed.path,
             "source already points to a Switch route; do not import it as a provider")
     return None

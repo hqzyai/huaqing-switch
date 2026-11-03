@@ -23,8 +23,8 @@ https://{$HQ_SWITCH_LAN_ADDRESS}:8443 {
 		request_body {
 			max_size 25MiB
 		}
-		reverse_proxy switch:17621 {
-			header_up Host huaqing-switch:17621
+		reverse_proxy switch:23002 {
+			header_up Host huaqing-switch:23002
 		}
 	}
 	handle {
@@ -42,8 +42,8 @@ http://{$HQ_SWITCH_LAN_ADDRESS}:8081 {
 		request_body {
 			max_size 25MiB
 		}
-		reverse_proxy switch:17621 {
-			header_up Host huaqing-switch:17621
+		reverse_proxy switch:23002 {
+			header_up Host huaqing-switch:23002
 		}
 	}
 	handle {

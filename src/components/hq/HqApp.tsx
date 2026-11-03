@@ -114,7 +114,7 @@ export default function HqApp({
     }
   };
   const navigation = [
-    { id: "connections" as const, title: "HQ Harness", Icon: Server },
+    { id: "connections" as const, title: "Huaqing Harness", Icon: Server },
     { id: "usage" as const, title: "用量统计", Icon: ChartNoAxesCombined },
     { id: "settings" as const, title: "设置", Icon: Settings },
   ];
@@ -183,7 +183,7 @@ export default function HqApp({
         >
           <h1 className="flex-1 text-title">
             {page === "connections"
-              ? "HQ Harness"
+              ? "Huaqing Harness"
               : page === "usage"
                 ? "用量统计"
                 : "设置"}
@@ -255,7 +255,7 @@ export default function HqApp({
                       {BRAND.productName} v{BRAND.version}
                     </h2>
                     <p className="text-body text-fg-2">
-                      Linux 部署版，统一管理 HQ Harness 模型连接与用量。
+                      Linux 部署版，统一管理 Huaqing Harness 模型连接与用量。
                     </p>
                     <a
                       className="inline-block rounded-control text-body text-action-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
@@ -288,8 +288,11 @@ export default function HqApp({
                   </p>
                   {gateway.data?.running ? (
                     <>
+                      {/* Caddy exposes inference at /model-api on the browser's origin. */}
                       <p className="break-all font-mono text-caption text-fg-2">
-                        {gateway.data.address}
+                        {serverDeployment
+                          ? `${window.location.origin}/model-api`
+                          : gateway.data.address}
                       </p>
                       <p className="text-caption text-fg-2">
                         进行中 {gateway.data.activeRequests} · 本次启动请求{" "}
@@ -304,7 +307,7 @@ export default function HqApp({
                             ? serverDeployment
                               ? "无法读取转发服务状态"
                               : "无法读取本地服务状态"
-                            : "正在准备 HQ Harness 连接")}
+                            : "正在准备 Huaqing Harness 连接")}
                       </p>
                       <Button
                         variant="outline"
@@ -317,7 +320,7 @@ export default function HqApp({
                   )}
                   {data && !data.activeId && (
                     <p className="text-body text-fg-2">
-                      请添加连接并设为默认，HQ Harness 会自动使用默认模型。
+                      请添加连接并设为默认，Huaqing Harness 会自动使用默认模型。
                     </p>
                   )}
                 </section>
@@ -325,7 +328,7 @@ export default function HqApp({
                   <div className="space-y-1">
                     <h2 className="text-title">模型 API 连接</h2>
                     <p className="text-body text-fg-2">
-                      管理 HQ Harness 的供应商、模型与访问凭证。
+                      管理 Huaqing Harness 的供应商、模型与访问凭证。
                     </p>
                   </div>
                   <Button
@@ -353,7 +356,7 @@ export default function HqApp({
                     role="alert"
                     className="space-y-3 rounded-panel border border-destructive p-5"
                   >
-                    <p>无法加载 HQ Harness 连接：{String(query.error)}</p>
+                    <p>无法加载 Huaqing Harness 连接：{String(query.error)}</p>
                     <Button
                       variant="outline"
                       onClick={() => void query.refetch()}

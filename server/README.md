@@ -15,8 +15,8 @@ cargo clippy --locked --manifest-path server/Cargo.toml --all-targets --all-feat
 | Environment                      | Meaning                                                                                                                                         |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `HQ_SWITCH_WEB_BIND`             | Web/API listener, default `0.0.0.0:8080`. Publish through an HTTPS reverse proxy.                                                               |
-| `HQ_SWITCH_GATEWAY_BIND`         | Machine inference listener, default `0.0.0.0:17621`. Keep inside the private container network.                                                 |
-| `HQ_SWITCH_GATEWAY_URL`          | Required advertised HTTP(S) origin, e.g. `http://huaqing-switch:17621`. Inference clients must send its exact canonical Host.                   |
+| `HQ_SWITCH_GATEWAY_BIND`         | Machine inference listener, default `0.0.0.0:23002`. Keep inside the private container network.                                                 |
+| `HQ_SWITCH_GATEWAY_URL`          | Required advertised HTTP(S) origin, e.g. `http://huaqing-switch:23002`. Inference clients must send its exact canonical Host.                   |
 | `HQ_SWITCH_PUBLIC_ORIGIN`        | Required browser HTTPS origin, without an application path. HTTP is accepted only on loopback for local testing.                                |
 | `HQ_SWITCH_HTTP_ORIGIN`          | Optional plaintext LAN management origin. Must use HTTP and the same private IPv4/loopback host and external port as `HQ_SWITCH_PUBLIC_ORIGIN`. |
 | `HQ_SWITCH_HTTP_BIND`            | Optional second internal management listener, e.g. `0.0.0.0:8081`. Configure together with `HQ_SWITCH_HTTP_ORIGIN`; absent by default.          |

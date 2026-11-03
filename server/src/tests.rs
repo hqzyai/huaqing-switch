@@ -709,6 +709,32 @@ async fn static_security_headers_api_missing_and_body_limit() {
     );
 }
 #[test]
+fn linux_inference_port_matches_deployment_without_changing_desktop_discovery() {
+    let default: std::net::SocketAddr = config::DEFAULT_GATEWAY_BIND.parse().unwrap();
+    assert_eq!(
+        default,
+        "0.0.0.0:23002".parse::<std::net::SocketAddr>().unwrap()
+    );
+    let compose = include_str!("../../deploy/linux/compose.yml");
+    assert!(compose.contains(&format!("HQ_SWITCH_GATEWAY_BIND: {default}")));
+    assert!(compose.contains("HQ_SWITCH_GATEWAY_URL: http://huaqing-switch:23002"));
+    let edge = include_str!("../../deploy/linux/Caddyfile");
+    assert_eq!(edge.matches("reverse_proxy switch:23002").count(), 2);
+    assert_eq!(
+        edge.matches("header_up Host huaqing-switch:23002").count(),
+        2
+    );
+    for dockerfile in [
+        include_str!("../../deploy/linux/Dockerfile"),
+        include_str!("../../deploy/linux/Dockerfile.artifact"),
+    ] {
+        assert!(dockerfile.contains("EXPOSE 8080 8081 23002"));
+    }
+    let desktop: Value = serde_json::from_str(include_str!("../../brand.config.json")).unwrap();
+    assert_eq!(desktop["proxyPort"], 17621);
+}
+
+#[test]
 fn configuration_rejects_credential_permissions_symlinks_and_unsafe_origins() {
     assert!(config::origin("https://switch.example/").is_ok());
     assert!(config::origin("http://192.168.2.11").is_err());

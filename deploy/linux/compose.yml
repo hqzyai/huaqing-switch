@@ -16,8 +16,8 @@ services:
     stop_grace_period: 330s
     environment:
       HQ_SWITCH_WEB_BIND: 0.0.0.0:8080
-      HQ_SWITCH_GATEWAY_BIND: 0.0.0.0:17621
-      HQ_SWITCH_GATEWAY_URL: http://huaqing-switch:17621
+      HQ_SWITCH_GATEWAY_BIND: 0.0.0.0:23002
+      HQ_SWITCH_GATEWAY_URL: http://huaqing-switch:23002
       HQ_SWITCH_PUBLIC_ORIGIN: https://${HQ_SWITCH_LAN_ADDRESS:?Set the LAN address}:28001
       HQ_SWITCH_HTTP_ORIGIN: http://${HQ_SWITCH_LAN_ADDRESS}:28001
       HQ_SWITCH_HTTP_BIND: 0.0.0.0:8081

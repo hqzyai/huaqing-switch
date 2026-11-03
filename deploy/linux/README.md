@@ -47,7 +47,7 @@ docker compose -f deploy/linux/compose.yml config --quiet
 docker compose -f deploy/linux/compose.yml up -d --no-build --wait
 ```
 
-Nginx 固定为官方 1.30.6 的 linux/amd64 摘要，导入后使用指定本地标签；离线镜像归档也必须包含该标签，以便 `docker save/load` 后直接启动。把环境变量存入部署目录的私密环境文件，供重启和运维重复使用；不要把凭证本身写进环境变量或 Compose 文件。状态初始化会保留已有文件，拒绝不安全的权限或相同的两份凭证。容器内的 HTTPS 管理上游监听 `8080`、HTTP 管理上游监听 `8081`、推理接口监听 `17621`。只有 Nginx 入口的 `28001` 绑定局域网，按 TLS ClientHello 将连接分别转给 Caddy 的 HTTPS / HTTP 入口；其他端口不发布到宿主。
+Nginx 固定为官方 1.30.6 的 linux/amd64 摘要，导入后使用指定本地标签；离线镜像归档也必须包含该标签，以便 `docker save/load` 后直接启动。把环境变量存入部署目录的私密环境文件，供重启和运维重复使用；不要把凭证本身写进环境变量或 Compose 文件。状态初始化会保留已有文件，拒绝不安全的权限或相同的两份凭证。容器内的 HTTPS 管理上游监听 `8080`、HTTP 管理上游监听 `8081`、推理接口监听 `23002`。只有 Nginx 入口的 `28001` 绑定局域网，按 TLS ClientHello 将连接分别转给 Caddy 的 HTTPS / HTTP 入口；其他端口不发布到宿主。
 
 新版本还必须提供独立的供应商凭证加密主密钥。先运行上述初始化脚本：首次创建 `$HQ_SWITCH_STATE_DIR/private/provider-encryption-key`，内容为 32 个原始随机字节（不是十六进制字符串，不带换行）；已有文件只校验、不覆盖。文件必须属于部署用户、为普通文件且权限严格为 0600，绝对路径各级不能包含符号链接。主密钥不能复用管理、推理或供应商 API Key。Compose 通过 `HQ_SWITCH_PROVIDER_KEY_FILE=/run/secrets/provider-encryption-key` 指定容器内路径，并从 `state/private/` 只读挂载，位于 `/data` 之外。独立运行服务也必须设置此变量，不能把主密钥写入环境变量、镜像或日志。升级保留原主密钥；丢失后应恢复与数据库匹配的原密钥，重新生成不能解密旧记录。
 

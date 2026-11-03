@@ -8,7 +8,7 @@
 
 | 网关配置                     | 含义                                                           |
 | ---------------------------- | -------------------------------------------------------------- |
-| `TEAM_SWITCH_URL`            | 明确配置的内部 Switch 源站，例如 `http://huaqing-switch:17621` |
+| `TEAM_SWITCH_URL`            | 明确配置的内部 Switch 源站，例如 `http://huaqing-switch:23002` |
 | `TEAM_SWITCH_TOKEN_FILE`     | 仅网关可读的 0600 推理凭证文件                                 |
 | `TEAM_SWITCH_ALIASES_FILE`   | 迁移生成的旧服务/模型 ID 到固定连接版本的映射文件              |
 | `TEAM_SWITCH_MANAGEMENT_URL` | 给管理员显示的 HTTPS Switch 管理地址，不附加凭证               |
