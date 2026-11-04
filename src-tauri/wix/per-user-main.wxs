@@ -204,8 +204,8 @@
                  The directory keeps [DesktopFolder] available to AppSearch and to those actions. -->
             <Directory Id="DesktopFolder" Name="Desktop" />
             <Directory Id="LocalAppDataFolder">
-                <Directory Id="TauriLocalAppDataPrograms" Name="Programs">
-                    <Directory Id="INSTALLDIR" Name="{{product_name}}"/>
+                <Directory Id="HuaqingLocalAppDataFolder" Name="huaqing">
+                    <Directory Id="INSTALLDIR" Name="switch"/>
                 </Directory>
             </Directory>
             <Directory Id="ProgramMenuFolder">
@@ -274,7 +274,7 @@
 						  Arguments="/x [ProductCode]" />
 
                 <!-- MSI removes this shared parent only when it is empty. -->
-                <RemoveFolder Id="RemoveUserProgramsFolder" Directory="TauriLocalAppDataPrograms" On="uninstall" />
+                <RemoveFolder Id="RemoveEmptyHuaqingFolder" Directory="HuaqingLocalAppDataFolder" On="uninstall" />
 
 				<RemoveFolder Id="INSTALLDIR"
 							  On="uninstall" />

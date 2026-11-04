@@ -7,7 +7,21 @@ const template = await readFile(
   "utf8",
 );
 
-test("uninstall never removes files from the shared per-user Programs directory", () => {
+test("new installs default to LocalAppData\\huaqing\\switch", () => {
+  assert.match(
+    template,
+    /<Directory Id="LocalAppDataFolder">\s*<Directory Id="HuaqingLocalAppDataFolder" Name="huaqing">\s*<Directory Id="INSTALLDIR" Name="switch"\s*\/>/,
+  );
+});
+
+test("upgrades can reuse the existing per-user installation directory", () => {
+  assert.match(
+    template,
+    /<Property Id="INSTALLDIR">[\s\S]*?<RegistrySearch\b[^>]*\bRoot="HKCU"[^>]*\bName="InstallDir"[^>]*\/>/,
+  );
+});
+
+test("uninstall never removes files from the shared per-user huaqing directory", () => {
   const cleanup = [
     ...template.matchAll(/<RemoveFile\b[^>]*\/\s*>/g),
   ];
@@ -15,13 +29,13 @@ test("uninstall never removes files from the shared per-user Programs directory"
   for (const [entry] of cleanup) {
     assert.doesNotMatch(
       entry,
-      /\bDirectory\s*=\s*["']TauriLocalAppDataPrograms["']/,
-      "The shared Programs directory and its files belong to other applications too",
+      /\bDirectory\s*=\s*["']HuaqingLocalAppDataFolder["']/,
+      "The shared huaqing directory can contain other applications",
     );
   }
   assert.match(
     template,
-    /<RemoveFolder\b[^>]*\bDirectory="TauriLocalAppDataPrograms"[^>]*\/\s*>/,
+    /<RemoveFolder\b[^>]*\bDirectory="HuaqingLocalAppDataFolder"[^>]*\bOn="uninstall"[^>]*\/\s*>/,
     "MSI requires cleanup of empty profile directories; RemoveFolder preserves all files",
   );
 });
