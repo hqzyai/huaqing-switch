@@ -41,7 +41,7 @@ GitHub Actions 的 `Desktop acceptance packages` 工作流（`windows-acceptance
 
 ## 品牌与数据
 
-- 产品：Huaqing Switch，桌面版本 `0.1.3`，应用 ID `app.hqmodelswitch.desktop`。
+- 产品：Huaqing Switch，桌面版本 `0.1.4`，应用 ID `app.hqmodelswitch.desktop`。
 - 默认数据：`~/.hq-model-switch/`，数据库 `hq-model-switch.db`。
 - 深链：`hqmodelswitch://`；本机代理默认端口 `17621`。
 - 自动发现：当前用户主目录下的 `.huaqing-switch/connector.json`，只包含本机访问凭证，不包含供应商密钥。端口冲突会报错并允许重试。
