@@ -133,13 +133,14 @@
         <Property Id="ARPURLUPDATEINFO" Value="{{homepage}}"/>
         {{/if}}
 
-        <Property Id="INSTALLDIR">
-          <!-- First attempt: Search for "InstallDir" -->
+        <Property Id="PREVIOUSINSTALLDIR" Secure="yes">
           <RegistrySearch Id="PrevInstallDirWithName" Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}" Name="InstallDir" Type="raw" />
-
-          <!-- Second attempt: If the first fails, search for the default key value (this is how the nsis installer currently stores the path) -->
-          <RegistrySearch Id="PrevInstallDirNoName" Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}" Type="raw" />
         </Property>
+        <!-- Only repair/uninstall of this ProductCode needs the recorded path.
+             A new ProductCode, including a major upgrade, starts from the new default. -->
+        <SetProperty Id="INSTALLDIR" Value="[PREVIOUSINSTALLDIR]" After="AppSearch" Sequence="both">
+            Installed AND PREVIOUSINSTALLDIR AND NOT INSTALLDIR
+        </SetProperty>
 
         <!-- launch app checkbox -->
         <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="!(loc.LaunchApp)" />
@@ -204,9 +205,7 @@
                  The directory keeps [DesktopFolder] available to AppSearch and to those actions. -->
             <Directory Id="DesktopFolder" Name="Desktop" />
             <Directory Id="LocalAppDataFolder">
-                <Directory Id="HuaqingLocalAppDataFolder" Name="huaqing">
-                    <Directory Id="INSTALLDIR" Name="switch"/>
-                </Directory>
+                <Directory Id="INSTALLDIR" Name="HuaqingSwitch"/>
             </Directory>
             <Directory Id="ProgramMenuFolder">
                 <Directory Id="ApplicationProgramsFolder" Name="{{product_name}}"/>
@@ -272,9 +271,6 @@
 						  Description="Uninstalls {{product_name}}"
 						  Target="[System64Folder]msiexec.exe"
 						  Arguments="/x [ProductCode]" />
-
-                <!-- MSI removes this shared parent only when it is empty. -->
-                <RemoveFolder Id="RemoveEmptyHuaqingFolder" Directory="HuaqingLocalAppDataFolder" On="uninstall" />
 
 				<RemoveFolder Id="INSTALLDIR"
 							  On="uninstall" />

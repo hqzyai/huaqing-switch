@@ -527,6 +527,8 @@ pub fn run() {
 
             // 预先刷新 Store 覆盖配置，确保后续路径读取正确（日志/数据库等）
             app_store::refresh_app_config_dir_override(app.handle());
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
+            let directory_migration = crate::config::migrate_app_config_directory();
             panic_hook::init_app_config_dir(crate::config::get_app_config_dir());
 
             // 初始化日志（输出到 <app_config_dir>/logs/hq-model-switch.log）
@@ -568,6 +570,11 @@ pub fn run() {
                 // 用户配置存在数据库中，数据库尚未打开时使用保守的 Info 级别。
                 log::set_max_level(log::LevelFilter::Info);
                 log::info!("=== Huaqing Switch v{} started ===", env!("CARGO_PKG_VERSION"));
+            }
+
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
+            if let Err(error) = directory_migration {
+                log::warn!("{error}");
             }
 
             #[cfg(unix)]

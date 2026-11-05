@@ -309,16 +309,14 @@ pub fn get_claude_settings_path() -> PathBuf {
     settings
 }
 
-/// 获取应用配置目录路径；显式测试 home 优先于用户保存的目录和 Windows 旧路径回退。
-pub fn get_app_config_dir() -> PathBuf {
+fn app_config_dir_override() -> Option<PathBuf> {
     if let Some(home) = test_home_override() {
-        return home.join(".hq-model-switch");
+        return Some(home.join(".hq-model-switch"));
     }
+    crate::app_store::get_app_config_dir_override()
+}
 
-    if let Some(custom) = crate::app_store::get_app_config_dir_override() {
-        return custom;
-    }
-
+fn legacy_app_config_dir() -> PathBuf {
     let default_dir = get_home_dir().join(".hq-model-switch");
 
     // 兼容 v3.10.3：当用户环境存在 `HOME` 且与真实用户目录不同，
@@ -347,6 +345,77 @@ pub fn get_app_config_dir() -> PathBuf {
     }
 
     default_dir
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+fn desktop_app_config_dir() -> Option<PathBuf> {
+    let directory = dirs::data_local_dir()?.join("HuaqingSwitch");
+    // Keep application files and user data separate for MSI upgrades and uninstalls.
+    #[cfg(target_os = "windows")]
+    let directory = directory.join("data");
+    Some(directory)
+}
+
+/// Resolve the current directory without creating any files. A failed move keeps
+/// the old directory active so a subsequent startup can retry.
+pub fn get_app_config_dir() -> PathBuf {
+    if let Some(directory) = app_config_dir_override() {
+        return directory;
+    }
+    let legacy = legacy_app_config_dir();
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    if let Some(directory) = desktop_app_config_dir() {
+        if directory.try_exists().unwrap_or(true) || !legacy.try_exists().unwrap_or(true) {
+            return directory;
+        }
+    }
+    legacy
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+pub(crate) fn migrate_app_config_directory() -> Result<(), AppError> {
+    if app_config_dir_override().is_some() {
+        return Ok(());
+    }
+    if let Some(directory) = desktop_app_config_dir() {
+        move_app_config_directory(&legacy_app_config_dir(), &directory)?;
+    }
+    Ok(())
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+fn move_app_config_directory(legacy: &Path, destination: &Path) -> Result<(), AppError> {
+    // A complete destination wins. Never merge data stores or overwrite an existing entry.
+    match fs::symlink_metadata(destination) {
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(AppError::io(destination, error)),
+    }
+    match fs::symlink_metadata(legacy) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => {
+            return Err(AppError::Config(format!(
+                "旧数据目录不是普通目录，继续使用原位置: {}",
+                legacy.display()
+            )));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(AppError::io(legacy, error)),
+    }
+    let parent = destination
+        .parent()
+        .expect("application data directory has a parent");
+    fs::create_dir_all(parent).map_err(|error| AppError::io(parent, error))?;
+    // A rename moves the entire SQLite store, including sidecars, in one operation.
+    // If a redirected profile is on another filesystem, keep using the original store.
+    fs::rename(legacy, destination).map_err(|source| AppError::IoContext {
+        context: format!(
+            "无法迁移应用数据 ({} -> {})",
+            legacy.display(),
+            destination.display()
+        ),
+        source,
+    })
 }
 
 /// 获取应用配置文件路径
@@ -1043,6 +1112,55 @@ mod tests {
         assert_eq!(
             dir, expected,
             "测试 home 优先：不得回退到 HOME 下的旧库目录"
+        );
+    }
+
+    #[test]
+    fn moves_legacy_config_as_one_directory_and_can_retry() {
+        let profile = tempfile::tempdir().unwrap();
+        let legacy = profile.path().join(".hq-model-switch");
+        let destination = profile.path().join("HuaqingSwitch").join("data");
+        fs::create_dir(&legacy).unwrap();
+        for file in [
+            "hq-model-switch.db",
+            "hq-model-switch.db-wal",
+            "config.json",
+        ] {
+            fs::write(legacy.join(file), file).unwrap();
+        }
+
+        move_app_config_directory(&legacy, &destination).unwrap();
+        move_app_config_directory(&legacy, &destination).unwrap();
+
+        assert!(!legacy.exists());
+        for file in [
+            "hq-model-switch.db",
+            "hq-model-switch.db-wal",
+            "config.json",
+        ] {
+            assert_eq!(fs::read_to_string(destination.join(file)).unwrap(), file);
+        }
+    }
+
+    #[test]
+    fn existing_config_is_not_overwritten_by_legacy_data() {
+        let profile = tempfile::tempdir().unwrap();
+        let legacy = profile.path().join(".hq-model-switch");
+        let destination = profile.path().join("HuaqingSwitch");
+        fs::create_dir(&legacy).unwrap();
+        fs::create_dir(&destination).unwrap();
+        fs::write(legacy.join("config.json"), "old").unwrap();
+        fs::write(destination.join("config.json"), "new").unwrap();
+
+        move_app_config_directory(&legacy, &destination).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(legacy.join("config.json")).unwrap(),
+            "old"
+        );
+        assert_eq!(
+            fs::read_to_string(destination.join("config.json")).unwrap(),
+            "new"
         );
     }
 }

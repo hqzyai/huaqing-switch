@@ -7,35 +7,39 @@ const template = await readFile(
   "utf8",
 );
 
-test("new installs default to LocalAppData\\huaqing\\switch", () => {
+test("new installs default to LocalAppData\\HuaqingSwitch", () => {
   assert.match(
     template,
-    /<Directory Id="LocalAppDataFolder">\s*<Directory Id="HuaqingLocalAppDataFolder" Name="huaqing">\s*<Directory Id="INSTALLDIR" Name="switch"\s*\/>/,
+    /<Directory Id="LocalAppDataFolder">\s*<Directory Id="INSTALLDIR" Name="HuaqingSwitch"\s*\/>/,
   );
 });
 
-test("upgrades can reuse the existing per-user installation directory", () => {
+test("only maintenance reuses the existing per-user installation directory", () => {
   assert.match(
     template,
-    /<Property Id="INSTALLDIR">[\s\S]*?<RegistrySearch\b[^>]*\bRoot="HKCU"[^>]*\bName="InstallDir"[^>]*\/>/,
+    /<Property Id="PREVIOUSINSTALLDIR"[^>]*>\s*<RegistrySearch\b[^>]*\bRoot="HKCU"[^>]*\bName="InstallDir"[^>]*\/>/,
+  );
+  assert.match(
+    template,
+    /<SetProperty Id="INSTALLDIR" Value="\[PREVIOUSINSTALLDIR\]"[^>]*>\s*Installed AND PREVIOUSINSTALLDIR AND NOT INSTALLDIR\s*<\/SetProperty>/,
   );
 });
 
-test("uninstall never removes files from the shared per-user huaqing directory", () => {
+test("uninstall cleanup is scoped to the application directory", () => {
   const cleanup = [
     ...template.matchAll(/<RemoveFile\b[^>]*\/\s*>/g),
   ];
   assert(cleanup.length > 0, "Expected application uninstall cleanup entries");
-  for (const [entry] of cleanup) {
+  for (const [entry] of template.matchAll(/<Remove(?:File|Folder)\b[^>]*\/\s*>/g)) {
     assert.doesNotMatch(
       entry,
-      /\bDirectory\s*=\s*["']HuaqingLocalAppDataFolder["']/,
-      "The shared huaqing directory can contain other applications",
+      /\b(?:Directory|Id)\s*=\s*["']LocalAppDataFolder["']/,
+      "The local application data directory belongs to other applications too",
     );
   }
   assert.match(
     template,
-    /<RemoveFolder\b[^>]*\bDirectory="HuaqingLocalAppDataFolder"[^>]*\bOn="uninstall"[^>]*\/\s*>/,
-    "MSI requires cleanup of empty profile directories; RemoveFolder preserves all files",
+    /<RemoveFolder\b[^>]*\bId="INSTALLDIR"[^>]*\bOn="uninstall"[^>]*\/\s*>/,
+    "RemoveFolder cleans up the installation directory when empty",
   );
 });

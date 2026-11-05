@@ -1,6 +1,6 @@
 {
   "name": "hq-model-switch",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Local model API connections for HQHarness",
   "type": "module",
   "scripts": {

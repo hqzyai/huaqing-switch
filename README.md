@@ -41,8 +41,10 @@ GitHub Actions 的 `Desktop acceptance packages` 工作流（`windows-acceptance
 
 ## 品牌与数据
 
-- 产品：Huaqing Switch，桌面版本 `0.1.4`，应用 ID `app.hqmodelswitch.desktop`。
-- 默认数据：`~/.hq-model-switch/`，数据库 `hq-model-switch.db`。
+- 产品：Huaqing Switch，桌面版本 `0.1.5`，应用 ID `app.hqmodelswitch.desktop`。
+- Windows 安装默认目录：`%LOCALAPPDATA%\HuaqingSwitch\`，用户数据在其 `data` 子目录。
+- macOS 应用默认放在「应用程序」，用户数据在 `~/Library/Application Support/HuaqingSwitch/`。Linux 用户数据在 `~/.hq-model-switch/`。
+- Windows 和 macOS 在启动时迁移旧的默认数据目录，保留已有自定义路径。移动失败时使用原数据并在下次启动重试。数据库文件名为 `hq-model-switch.db`。
 - 深链：`hqmodelswitch://`；本机代理默认端口 `17621`。
 - 自动发现：当前用户主目录下的 `.huaqing-switch/connector.json`，只包含本机访问凭证，不包含供应商密钥。端口冲突会报错并允许重试。
 - 原版更新公钥、更新 URL、自动发布和镜像工作流已隔离。未配置自有发行服务时，更新明确不可用，不回退下载原版程序。

@@ -75,7 +75,7 @@ npm run build
 
 已安装 HQHarness 使用 `--harness-exe` 与 `--harness-app-root`，后者必须指向同一安装目录中的 `resources/app.asar`。脚本由该 EXE 的 Electron Node 模式加载 ASAR 内的真实 Harness/Pi 依赖及 Switch 插件，并记录实际 EXE/ASAR 路径，以及 Desktop、Electron 和 Node 版本；无需在目标服务器检出 HQHarness 源码或安装 npm 依赖。两种 HQHarness 输入模式不能混用。
 
-以下命令在 Switch 仓库内运行，通过 HKCU 的安装记录定位 HQHarness 0.1.8 和 Switch。Switch 新装默认目录为 `%LOCALAPPDATA%\huaqing\switch\`，升级时沿用已登记的安装目录。执行前须通过托盘“退出”正常关闭 Switch，避免固定端口和单实例冲突。
+以下命令在 Switch 仓库内运行，通过 HKCU 的安装记录定位 HQHarness 0.1.8 和 Switch。Switch 安装和升级时默认使用 `%LOCALAPPDATA%\HuaqingSwitch\`。执行前须通过托盘“退出”正常关闭 Switch，避免固定端口和单实例冲突。
 
 ```powershell
 $registration = Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\0efcdb0c-0869-57ce-862f-b5dcc16b1997'
