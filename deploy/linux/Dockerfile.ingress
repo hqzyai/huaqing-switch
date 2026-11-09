@@ -1,0 +1,9 @@
+# Pinned official Caddy Alpine runtime already used by the deployment.
+FROM caddy@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+LABEL org.opencontainers.image.title="Huaqing Switch Caddy ingress" \
+      org.opencontainers.image.version="2.11.9"
+COPY caddy /usr/bin/caddy
+COPY Caddyfile.ingress /etc/caddy/Caddyfile
+RUN caddy version && caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+EXPOSE 28001/tcp
+USER 1000:1000

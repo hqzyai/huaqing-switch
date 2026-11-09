@@ -1,0 +1,16 @@
+{
+	admin off
+	persist_config off
+	layer4 {
+		:28001 {
+			matching_timeout 10s
+			@https tls
+			route @https {
+				switch_relay edge:8443 5s 330s
+			}
+			route {
+				switch_relay edge:8081 5s 330s
+			}
+		}
+	}
+}
