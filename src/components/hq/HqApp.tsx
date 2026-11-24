@@ -139,7 +139,7 @@ export default function HqApp({
             draggable={false}
             className="h-7 w-7 shrink-0 object-contain"
           />
-          <span className="text-strong font-semibold leading-5">
+          <span className="min-w-0 truncate text-strong font-semibold leading-5" title={BRAND.productName}>
             {BRAND.productName}
           </span>
         </div>
