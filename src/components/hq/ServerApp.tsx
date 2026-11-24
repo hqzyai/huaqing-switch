@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Loader2, Eye, EyeOff, RefreshCw } from "lucide-react";
 import HqApp from "./HqApp";
+import brandLogo from "@/assets/branding/hqzyai-logomark.svg";
 import {
   endServerSession,
   HqHttpError,
@@ -18,7 +19,7 @@ type SessionState = "checking" | "anonymous" | "authenticated" | "unavailable";
 function LoginForm({ onLogin }: { onLogin: () => void }) {
   return <main className="hq-auth"><div className="hq-auth-layout">
     <header className="hq-auth-heading">
-      <img src="/hqzyai-logomark.svg" alt="" width="26" height="22" />
+      <img src={brandLogo} alt="" width="26" height="22" />
       <span>华清智言 · Huaqing Switch</span>
     </header>
     <section className="hq-auth-card" aria-labelledby="hq-auth-title">
